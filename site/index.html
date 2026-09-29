@@ -82,7 +82,7 @@
       <a href="#product">Product</a>
       <a href="#privacy">Privacy</a>
       <a href="#connect">Connect Jira</a>
-      <a href="#source">Build from source</a>
+      <a href="#download">Download</a>
       <a class="nav-gh" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
     </nav>
   </header>
@@ -93,9 +93,10 @@
         <h1 id="hero-title">A calm desktop timesheet for Jira&nbsp;Cloud.</h1>
         <p class="hero-lede">See your Jira worklogs as a week calendar, log time with a click, and catch the days you missed before anyone has to ask.</p>
         <div class="hero-actions">
-          <a class="cta" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Get Trackline on GitHub</a>
-          <a class="cta-quiet" href="#source">Build from source<svg class="ic" aria-hidden="true"><use href="#i-arrow-d"/></svg></a>
+          <a class="cta" href="https://github.com/defrimhasani/trackline/releases/latest" data-download="auto"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg><span data-download-label>Download Trackline</span></a>
+          <a class="cta-quiet" href="#download">All downloads<svg class="ic" aria-hidden="true"><use href="#i-arrow-d"/></svg></a>
         </div>
+        <p class="hero-release" data-release-note>Free for macOS, Windows and Linux.</p>
         <ul class="hero-facts" aria-label="At a glance">
           <li>Free, MIT licensed</li>
           <li>macOS, Windows, Linux</li>
@@ -389,10 +390,44 @@
       </div>
     </section>
 
+    <section class="download" id="download" aria-labelledby="download-title">
+      <div class="download-copy">
+        <h2 id="download-title">Download Trackline.</h2>
+        <p>Pick the build for your computer. <span data-release-version>Every file comes from the latest GitHub release.</span></p>
+      </div>
+      <ul class="platforms" aria-label="Downloads">
+        <li class="platform" data-platform="mac">
+          <div><strong>macOS</strong><small>Apple Silicon (M1 and newer)</small></div>
+          <a class="dl" href="https://github.com/defrimhasani/trackline/releases/latest" data-asset="aarch64.dmg"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>.dmg</a>
+        </li>
+        <li class="platform" data-platform="mac">
+          <div><strong>macOS</strong><small>Intel</small></div>
+          <a class="dl" href="https://github.com/defrimhasani/trackline/releases/latest" data-asset="x64.dmg"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>.dmg</a>
+        </li>
+        <li class="platform" data-platform="windows">
+          <div><strong>Windows</strong><small>Windows 10 and 11, 64-bit</small></div>
+          <span class="dl-group"><a class="dl" href="https://github.com/defrimhasani/trackline/releases/latest" data-asset="x64-setup.exe"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>Installer</a><a class="dl dl-quiet" href="https://github.com/defrimhasani/trackline/releases/latest" data-asset="x64_en-US.msi">.msi</a></span>
+        </li>
+        <li class="platform" data-platform="linux">
+          <div><strong>Linux</strong><small>64-bit</small></div>
+          <span class="dl-group"><a class="dl" href="https://github.com/defrimhasani/trackline/releases/latest" data-asset=".AppImage"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>.AppImage</a><a class="dl dl-quiet" href="https://github.com/defrimhasani/trackline/releases/latest" data-asset=".deb">.deb</a><a class="dl dl-quiet" href="https://github.com/defrimhasani/trackline/releases/latest" data-asset=".rpm">.rpm</a></span>
+        </li>
+      </ul>
+      <div class="first-launch">
+        <h3>Opening it the first time</h3>
+        <p>Trackline isn’t signed with a paid Apple or Microsoft certificate yet, so your system asks you to confirm once.</p>
+        <ul>
+          <li><strong>macOS:</strong> open Trackline, then go to System Settings → Privacy &amp; Security and select <em>Open Anyway</em>.</li>
+          <li><strong>Windows:</strong> in the SmartScreen prompt, select <em>More info</em> → <em>Run anyway</em>.</li>
+        </ul>
+        <p class="first-launch-links"><a href="https://github.com/defrimhasani/trackline/releases">All releases and release notes</a></p>
+      </div>
+    </section>
+
     <section class="source" id="source" aria-labelledby="source-title">
       <div class="source-copy">
-        <h2 id="source-title">Build it from source.</h2>
-        <p>There are no prebuilt installers yet. Trackline runs from source on macOS, Windows and Linux, and it takes four commands.</p>
+        <h2 id="source-title">Or build it yourself.</h2>
+        <p>Trackline is open source. Building it from source on macOS, Windows or Linux takes four commands.</p>
         <ul class="prereqs" aria-label="Prerequisites">
           <li><a href="https://nodejs.org">Node.js</a> 20 or newer</li>
           <li><a href="https://www.rust-lang.org/tools/install">Rust</a>, stable</li>
@@ -412,7 +447,10 @@
     <section class="close" aria-labelledby="close-title">
       <h2 id="close-title">Close the week with nothing missing.</h2>
       <p>Trackline is free and MIT licensed. Issues and pull requests are welcome.</p>
-      <a class="cta" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Get Trackline on GitHub</a>
+      <div class="close-actions">
+        <a class="cta" href="#download"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>Download Trackline</a>
+        <a class="close-link" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>View on GitHub</a>
+      </div>
     </section>
   </main>
 </div>

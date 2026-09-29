@@ -236,3 +236,36 @@
   });
 
 })();
+
+/* Download links: resolve real assets from the latest GitHub release and suggest the visitor's platform. */
+(() => {
+  const releasesUrl = 'https://github.com/defrimhasani/trackline/releases/latest';
+  const agent = `${navigator.userAgentData?.platform ?? ''} ${navigator.platform ?? ''} ${navigator.userAgent}`.toLowerCase();
+  const platform = /mac|iphone|ipad/.test(agent) ? 'mac' : /win/.test(agent) ? 'windows' : /linux|x11/.test(agent) ? 'linux' : '';
+  const primary = { mac: { asset: 'aarch64.dmg', label: 'Download for macOS' }, windows: { asset: 'x64-setup.exe', label: 'Download for Windows' }, linux: { asset: '.AppImage', label: 'Download for Linux' } }[platform];
+
+  document.querySelectorAll(`.platform[data-platform="${platform}"]`).forEach(row => row.classList.add('is-yours'));
+  const heroLink = document.querySelector('[data-download="auto"]');
+  const heroLabel = document.querySelector('[data-download-label]');
+  if (primary && heroLabel) heroLabel.textContent = primary.label;
+
+  fetch('https://api.github.com/repos/defrimhasani/trackline/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+    .then(response => response.ok ? response.json() : Promise.reject(response.status))
+    .then(release => {
+      const find = suffix => release.assets.find(asset => asset.name.endsWith(suffix) && !asset.name.endsWith('.sig'));
+      document.querySelectorAll('[data-asset]').forEach(link => {
+        const asset = find(link.dataset.asset);
+        if (asset) { link.href = asset.browser_download_url; link.title = `${asset.name} · ${(asset.size / 1048576).toFixed(1)} MB`; }
+      });
+      const heroAsset = primary && find(primary.asset);
+      if (heroLink && heroAsset) heroLink.href = heroAsset.browser_download_url;
+      const version = release.tag_name;
+      document.querySelectorAll('[data-release-version]').forEach(node => { node.textContent = `Latest release: ${version}.`; });
+      const note = document.querySelector('[data-release-note]');
+      if (note) {
+        note.textContent = `${version} · Free for macOS, Windows and Linux. `;
+        if (platform === 'mac') { const intel = find('x64.dmg'); if (intel) { const link = document.createElement('a'); link.href = intel.browser_download_url; link.textContent = 'Intel Mac?'; note.append(link); } }
+      }
+    })
+    .catch(() => { if (heroLink) heroLink.href = releasesUrl; });
+})();

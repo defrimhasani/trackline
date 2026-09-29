@@ -16,9 +16,25 @@ Trackline is a free, open-source desktop app built with [Tauri](https://tauri.ap
 - **Daily reminder.** A native notification on weekdays if you are below target at your chosen time.
 - **Light and dark themes,** hide-weekends toggle, and a resizable desktop window.
 
-## Getting started
+## Download
 
-Trackline currently runs from source. You need:
+Get the latest version from **[GitHub Releases](https://github.com/defrimhasani/trackline/releases/latest)**:
+
+| Platform | File |
+|---|---|
+| macOS, Apple Silicon | `Trackline_<version>_aarch64.dmg` |
+| macOS, Intel | `Trackline_<version>_x64.dmg` |
+| Windows 10/11 | `Trackline_<version>_x64-setup.exe` or `.msi` |
+| Linux | `.AppImage`, `.deb` or `.rpm` |
+
+Trackline is not yet signed with a paid Apple or Microsoft certificate, so the first launch needs one confirmation:
+
+- **macOS:** open the app, then go to *System Settings → Privacy & Security* and select **Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/Trackline.app`).
+- **Windows:** in the SmartScreen prompt select **More info → Run anyway**.
+
+## Build from source
+
+You need:
 
 - [Node.js](https://nodejs.org) 20 or newer
 - [Rust](https://www.rust-lang.org/tools/install) (stable)
@@ -70,3 +86,9 @@ Issues and pull requests are welcome. Please keep changes consistent with the de
 [MIT](LICENSE) © Defrim Hasani
 
 Trackline is an independent project and is not affiliated with or endorsed by Atlassian. Jira is a trademark of Atlassian.
+
+## Releasing
+
+1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
+2. Push a tag such as `v0.2.0`, or run the **Release** workflow from the Actions tab.
+3. The workflow builds macOS (Apple Silicon and Intel), Windows and Linux installers, attaches them to a GitHub Release, and publishes it when every build has succeeded.
