@@ -4,6 +4,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from '@tauri
 import { TeamWorklogs, buildTeamRows, teamExportFiles, useTeamScope, useTeamWorklogs } from './team';
 import { useTicketFields } from './tickets';
 import { MonthPicker } from './month-picker';
+import { UpdateBanner, UpdateSettings, useAppUpdates } from './updates';
 import { addDays, daysBetween, formatHours, localDate, readableError, toCsv, weekdayLabels } from './utils';
 import {
   Bell, BellRing, Bookmark, Bug, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, CircleHelp, Clock3,
@@ -219,6 +220,7 @@ export default function App() {
     ? { start: localDate(weekStart), end: localDate(addDays(weekStart, 7)) }
     : { start: localDate(monthStart), end: localDate(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1)) };
   const ticketFields = useTicketFields(syncState === 'ready');
+  const updates = useAppUpdates();
   const team = useTeamWorklogs(teamScope, teamRange, (view === 'worklogs' || modal === 'export') && ticketFields.isReady, ticketFields.config);
   const teamRows = useMemo(() => buildTeamRows(team.worklogs, teamScope.people), [team.worklogs, teamScope.people]);
   const teamDates = daysBetween(teamRange.start, teamRange.end);
@@ -386,6 +388,7 @@ export default function App() {
     </aside>
 
     <section className="workspace">
+      <UpdateBanner updates={updates} />
       {view === 'settings' ? <header className="topbar settings-topbar">
         <button className="back-link" onClick={() => setView('calendar')}><ChevronLeft size={18} />Calendar</button>
         <span className="settings-note"><Check size={14} />Changes apply immediately</span>
@@ -445,6 +448,10 @@ export default function App() {
                  </div>)}
                </div>}
              </div>
+           </section>
+           <section className="settings-section" aria-labelledby="settings-updates">
+             <div className="settings-intro"><RefreshCw size={18} aria-hidden="true" /><div><h2 id="settings-updates">Updates</h2><p>Trackline checks GitHub for new versions when it starts and every few hours, and updates itself when you choose.</p></div></div>
+             <div className="setting-control"><UpdateSettings updates={updates} /></div>
            </section>
            <section className="settings-section" aria-labelledby="settings-reminder">
              <div className="settings-intro"><BellRing size={18} aria-hidden="true" /><div><h2 id="settings-reminder">Daily reminder</h2><p>Receive an in-app prompt to finish logging time before your workday ends.</p></div></div>

@@ -2,6 +2,14 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### New
+- **Automatic updates.** Trackline checks for new versions when it starts and every few hours. When one is available, a bar at the top shows what's new with an **Update and restart** button. You can also check any time in **Settings → Updates**.
+
+### Note
+- Versions before this one can't update themselves. Download this release once from the website or GitHub; from then on Trackline keeps itself up to date.
+
 ## v0.2.0 — 2026-09-29
 
 ### New

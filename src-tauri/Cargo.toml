@@ -21,3 +21,5 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"] }
 url = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

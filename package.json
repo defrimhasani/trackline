@@ -13,6 +13,8 @@
     "@tauri-apps/api": "^2.12.0",
     "@tauri-apps/cli": "latest",
     "@tauri-apps/plugin-notification": "^2.5.0",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.13.0",
     "@vitejs/plugin-react": "latest",
     "lucide-react": "latest",
     "react": "latest",

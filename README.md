@@ -15,6 +15,7 @@ Trackline is a free, open-source desktop app built with [Tauri](https://tauri.ap
 - **Tickets view.** Switch the team view to one row per ticket: issue type, status, Work type, Cost/Capitalized, estimate, hours logged in the period, total against estimate, and who logged time. A summary bar splits hours into Capitalized and Cost, and by work type. The two custom fields are detected by name and can be changed in *Settings → Jira fields*.
 - **CSV export.** Your own worklogs, or a team summary, every individual worklog line, and per-ticket totals.
 - **Daily reminder.** A native notification on weekdays if you are below target at your chosen time.
+- **Automatic updates.** Trackline checks GitHub for new versions and updates itself when you choose.
 - **Light and dark themes,** hide-weekends toggle, and a resizable desktop window.
 
 ## Download
@@ -32,6 +33,8 @@ Trackline is not yet signed with a paid Apple or Microsoft certificate, so the f
 
 - **macOS:** open the app, then go to *System Settings → Privacy & Security* and select **Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/Trackline.app`).
 - **Windows:** in the SmartScreen prompt select **More info → Run anyway**.
+
+After that, Trackline updates itself: it checks for new versions when it starts and every few hours, and asks before installing. Automatic updates work with the macOS app, the Windows installer and the Linux AppImage. `.deb` and `.rpm` installs are updated by downloading the new package. Versions before v0.3.0 can't update themselves, so install v0.3.0 or later once by hand.
 
 ## Build from source
 
@@ -54,7 +57,7 @@ To build an installable app for your platform:
 npm run tauri build
 ```
 
-The bundle is written to `src-tauri/target/release/bundle/`.
+The bundle is written to `src-tauri/target/release/bundle/`. Builds made this way don't include signed update files, so they won't update themselves; only official releases do.
 
 ## Connecting Jira
 
@@ -95,5 +98,8 @@ Every merge to `main` that changes the app (`src/`, `src-tauri/`, npm packages o
 1. Describe user-facing changes under **## Unreleased** in [`CHANGELOG.md`](CHANGELOG.md) as part of your change.
 2. The **Release** workflow bumps the patch version (for example `0.1.1` → `0.1.2`) in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, renames *Unreleased* to the new version, and commits it back to `main`.
 3. It builds macOS (Apple Silicon and Intel), Windows and Linux installers and publishes them as a GitHub Release, using that changelog section as the release notes.
+4. It signs the update bundles with the updater key (`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets) and publishes a `latest.json` manifest, which installed apps use to find and verify updates. The matching public key is in `src-tauri/tauri.conf.json`; release builds enable update bundles through `src-tauri/tauri.release.conf.json`.
+
+Keep a backup of the updater private key and its password. Without them, installed copies can't receive new updates.
 
 Put `[minor]` or `[major]` in the merge commit message for a bigger version step, or `[skip release]` to skip releasing. You can also run the workflow manually from the Actions tab and choose the bump.
