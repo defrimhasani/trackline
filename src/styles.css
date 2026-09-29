@@ -142,3 +142,12 @@ button { cursor: pointer; }
 .update-settings{display:grid;gap:12px;width:100%}.update-version strong{display:block;font-size:13px}.update-version small{display:block;margin-top:3px;color:#5d6e85;font-size:12px}.dark .update-version small{color:#a9b6c6}.update-version small.invalid{color:#a34a38}.dark .update-version small.invalid{color:#ffb4a3}.update-buttons{display:flex;flex-wrap:wrap;gap:8px}.update-buttons .quiet-action{margin-left:0}.update-buttons .quiet-action:disabled{opacity:.55;cursor:default}
 @media (max-width: 900px){.update-row{padding:8px 18px;flex-wrap:wrap}.update-notes{padding:4px 18px 12px}}
 .refresh-button.is-spinning svg{animation:calendar-spin .8s linear infinite}.refresh-button:disabled{cursor:progress}@media (prefers-reduced-motion: reduce){.refresh-button.is-spinning svg{animation-duration:2.4s}}
+/* ---------- Worklog edit and delete ---------- */
+.worklog-detail{width:360px}.worklog-detail>p.no-description{font-style:italic}
+.worklog-detail .worklog-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px}.worklog-actions .open-issue{margin-top:0}
+.open-issue.danger-outline{color:#a34a38;border-color:#efc3b6}.open-issue.danger-outline:hover{background:#fff4f0;border-color:#e39a86}
+.open-issue.quiet{margin-top:8px;border-color:transparent;color:#4a627e}.open-issue.quiet:hover{border-color:#cbd8e5}
+.worklog-detail .delete-confirm{display:block;margin-top:20px;padding:12px;border:1px solid #efc3b6;border-radius:6px;background:#fff7f4;color:#5e2a1d}.delete-confirm p{margin:0;font-size:12px;line-height:1.5}.delete-confirm .save-error{margin-top:8px}
+.worklog-detail .delete-buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.danger-button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:#c2472f;color:#fff;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer}.danger-button:hover{background:#a93c27}.danger-button:disabled{opacity:.8;cursor:progress}
+.issue-lock-note{margin:6px 0 0;color:#5d6e85;font-size:12px}

@@ -108,7 +108,9 @@ fn jira_send(request: reqwest::blocking::RequestBuilder, email: &str, token: &st
       (None, _) => format!("Jira could not complete the request ({}).", status.as_u16()),
     });
   }
-  response.json().map_err(|_| "Jira returned an unreadable response.".to_string())
+  let text = response.text().map_err(|_| "Jira returned an unreadable response.".to_string())?;
+  if text.trim().is_empty() { return Ok(Value::Null); }
+  serde_json::from_str(&text).map_err(|_| "Jira returned an unreadable response.".to_string())
 }
 
 fn jira_get(url: &str, email: &str, token: &str) -> Result<Value, String> {
@@ -148,14 +150,44 @@ fn is_issue_key(query: &str) -> bool {
 async fn add_worklog(issue_key: String, started: String, duration_minutes: u64, description: String) -> Result<String, String> {
   in_background(move || {
     if !is_issue_key(&issue_key) { return Err("Choose a valid Jira issue.".to_string()); }
-    if duration_minutes == 0 { return Err("Enter a duration of at least one minute.".to_string()); }
+    let body = worklog_body(&started, duration_minutes, &description, false)?;
     let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
-    let mut body = json!({ "started": started, "timeSpentSeconds": duration_minutes * 60 });
-    if !description.trim().is_empty() {
-      body["comment"] = json!({ "type": "doc", "version": 1, "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": description.trim() }] }] });
-    }
     let created = jira_post(&format!("{site}/rest/api/3/issue/{issue_key}/worklog"), &email, &token, &body)?;
     created["id"].as_str().map(str::to_owned).ok_or_else(|| "Jira did not confirm the new worklog.".to_string())
+  }).await
+}
+
+fn worklog_body(started: &str, duration_minutes: u64, description: &str, clear_empty_comment: bool) -> Result<Value, String> {
+  if duration_minutes == 0 { return Err("Enter a duration of at least one minute.".to_string()); }
+  let mut body = json!({ "started": started, "timeSpentSeconds": duration_minutes * 60 });
+  if !description.trim().is_empty() {
+    body["comment"] = json!({ "type": "doc", "version": 1, "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": description.trim() }] }] });
+  } else if clear_empty_comment {
+    body["comment"] = json!({ "type": "doc", "version": 1, "content": [] });
+  }
+  Ok(body)
+}
+
+fn is_worklog_id(value: &str) -> bool { !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()) }
+
+#[tauri::command]
+async fn update_worklog(issue_key: String, worklog_id: String, started: String, duration_minutes: u64, description: String, clear_comment: bool) -> Result<(), String> {
+  in_background(move || {
+    if !is_issue_key(&issue_key) || !is_worklog_id(&worklog_id) { return Err("This worklog can't be found in Jira.".to_string()); }
+    let body = worklog_body(&started, duration_minutes, &description, clear_comment)?;
+    let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
+    jira_send(reqwest::blocking::Client::new().put(format!("{site}/rest/api/3/issue/{issue_key}/worklog/{worklog_id}")).json(&body), &email, &token)?;
+    Ok(())
+  }).await
+}
+
+#[tauri::command]
+async fn delete_worklog(issue_key: String, worklog_id: String) -> Result<(), String> {
+  in_background(move || {
+    if !is_issue_key(&issue_key) || !is_worklog_id(&worklog_id) { return Err("This worklog can't be found in Jira.".to_string()); }
+    let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
+    jira_send(reqwest::blocking::Client::new().delete(format!("{site}/rest/api/3/issue/{issue_key}/worklog/{worklog_id}")), &email, &token)?;
+    Ok(())
   }).await
 }
 
@@ -462,4 +494,4 @@ async fn open_issue(issue_key: String) -> Result<(), String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() { tauri::Builder::default().plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, search_projects, search_users, get_team_worklogs, list_custom_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
+pub fn run() { tauri::Builder::default().plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_custom_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
