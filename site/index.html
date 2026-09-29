@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trackline — a calm desktop timesheet for Jira Cloud</title>
+  <meta name="description" content="Trackline is a free, open-source desktop timesheet for Jira Cloud. See your worklogs on a week calendar, log time with a click, catch the days you missed, and export CSV for you or your team.">
+  <meta name="theme-color" content="#17263f">
+  <link rel="canonical" href="https://defrimhasani.github.io/trackline/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Trackline">
+  <meta property="og:title" content="Trackline — a calm desktop timesheet for Jira Cloud">
+  <meta property="og:description" content="Your Jira worklogs on a week calendar. Log time with a click, catch the days you missed, export CSV. Free and open source.">
+  <meta property="og:url" content="https://defrimhasani.github.io/trackline/">
+  <meta property="og:image" content="https://defrimhasani.github.io/trackline/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Trackline week calendar showing Jira worklogs, next to the headline “A calm desktop timesheet for Jira Cloud.”">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Trackline — a calm desktop timesheet for Jira Cloud">
+  <meta name="twitter:description" content="Your Jira worklogs on a week calendar. Log time with a click, catch the days you missed, export CSV. Free and open source.">
+  <meta name="twitter:image" content="https://defrimhasani.github.io/trackline/assets/og-image.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Manrope:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script>document.documentElement.classList.add('js');</script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6h4.5"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><path d="M10 2h4"/><path d="M12 14v-4"/><path d="M4 13a8 8 0 0 1 8-7 8 8 0 1 1-5.3 14L4 17.6"/><path d="M9 17H4v5"/></symbol>
+  <symbol id="i-sheet" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/></symbol>
+  <symbol id="i-dashboard" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+  <symbol id="i-arrow-r" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-arrow-d" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01"/><path d="M6 18h.01"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M8 10v4"/><path d="M12 10v2"/><path d="M16 10v6"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="i-task" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="stage" id="top">
+  <header class="site-head">
+    <a class="brand" href="#top" aria-label="Trackline, back to top">
+      <svg class="brand-icon" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0f1b2e"/><path d="M116 150h280v52H282v160h-52V202H116z" fill="#edf2f6"/><path d="M282 310h114v52H282z" fill="#16a89a"/></svg>
+      <span>Trackline</span>
+    </a>
+    <nav class="site-nav" aria-label="Site">
+      <a href="#product">Product</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#connect">Connect Jira</a>
+      <a href="#source">Build from source</a>
+      <a class="nav-gh" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <div class="theatre" id="product">
+      <section class="hero" data-step="0" aria-labelledby="hero-title">
+        <h1 id="hero-title">A calm desktop timesheet for Jira&nbsp;Cloud.</h1>
+        <p class="hero-lede">See your Jira worklogs as a week calendar, log time with a click, and catch the days you missed before anyone has to ask.</p>
+        <div class="hero-actions">
+          <a class="cta" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Get Trackline on GitHub</a>
+          <a class="cta-quiet" href="#source">Build from source<svg class="ic" aria-hidden="true"><use href="#i-arrow-d"/></svg></a>
+        </div>
+        <ul class="hero-facts" aria-label="At a glance">
+          <li>Free, MIT licensed</li>
+          <li>macOS, Windows, Linux</li>
+          <li>No account, no server</li>
+        </ul>
+      </section>
+
+      <div class="board-wrap">
+        <div class="board-sticky">
+          <figure class="board-frame">
+            <div class="board" id="board" data-view="calendar" data-focus="off" data-dialog="none" data-theme="light" aria-label="Interactive replica of the Trackline app with made-up data" role="group">
+              <div class="b-rail" aria-hidden="true">
+                <span class="b-mark"><i></i><i></i><i></i></span>
+                <span class="b-nav b-nav-cal"><svg class="ic"><use href="#i-calendar"/></svg></span>
+                <span class="b-nav b-nav-team"><svg class="ic"><use href="#i-timer"/></svg></span>
+                <span class="b-nav"><svg class="ic"><use href="#i-sheet"/></svg></span>
+                <span class="b-nav"><svg class="ic"><use href="#i-dashboard"/></svg></span>
+                <span class="b-spacer"></span>
+                <span class="b-nav"><svg class="ic"><use href="#i-settings"/></svg></span>
+                <span class="b-avatar">MC</span>
+              </div>
+
+              <div class="b-main">
+                <div class="b-topbar">
+                  <div class="b-week" aria-hidden="true">
+                    <svg class="ic"><use href="#i-chev-l"/></svg>
+                    <div><strong>Mar 9 — Mar 13</strong><span class="b-sub-cal">Jira worklog calendar</span><span class="b-sub-team">Team worklogs</span></div>
+                    <svg class="ic"><use href="#i-chev-r"/></svg>
+                    <span class="b-today">Today</span>
+                  </div>
+                  <div class="b-actions">
+                    <button type="button" class="b-icon" data-action="theme" aria-pressed="false" aria-label="Dark theme for this replica"><svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg></button>
+                    <button type="button" class="b-export" data-action="export"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>Export</button>
+                    <button type="button" class="b-primary" data-action="log"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Log time</button>
+                  </div>
+                </div>
+
+                <div class="b-views">
+                  <!-- Week calendar -->
+                  <div class="b-view b-cal" data-view-name="calendar">
+                    <div class="b-head">
+                      <div class="b-titles"><span class="b-title">Your workweek</span><span class="b-summary">26.5h logged · 13.5h remaining</span></div>
+                      <div class="b-opts">
+                        <button type="button" class="b-switch" role="switch" aria-checked="false" data-action="focus" aria-label="Focus on incomplete days"><i class="tg" aria-hidden="true"><i></i></i><span>Focus<span class="sw-long"> on incomplete days</span></span><b class="b-count" aria-hidden="true">2</b></button>
+                        <span class="b-static b-hide-we" aria-hidden="true"><i class="tg on"><i></i></i>Hide weekends</span>
+                        <span class="b-tabs" aria-hidden="true"><span class="sel">Week</span><span>Month</span></span>
+                      </div>
+                    </div>
+                    <div class="b-legend" aria-hidden="true"><span><i class="dot teal"></i>Logged</span><span><i class="dot blue"></i>Review / meeting</span><span><i class="dot coral"></i>Needs attention</span><span class="b-legend-help"><svg class="ic"><use href="#i-help"/></svg>How totals work</span></div>
+
+                    <div class="cal" aria-hidden="true">
+                      <div class="cal-corner"></div>
+                      <div class="cal-day is-done"><span>MON</span><strong>09</strong><small>8h<b> /8h</b></small><i class="meter" style="--p:1"></i></div>
+                      <div class="cal-day is-short"><span>TUE</span><strong>10</strong><small>6h<b> /8h</b><em class="miss">−2h</em></small><i class="meter" style="--p:.75"></i></div>
+                      <div class="cal-day is-done"><span>WED</span><strong>11</strong><small>8h<b> /8h</b></small><i class="meter" style="--p:1"></i></div>
+                      <div class="cal-day is-short is-today"><span>THU</span><strong>12</strong><small>4.5h<b> /8h</b><em class="miss">−3.5h</em></small><i class="meter" style="--p:.5625"></i></div>
+                      <div class="cal-day is-future"><span>FRI</span><strong>13</strong><small>0h<b> /8h</b></small><i class="meter" style="--p:0"></i></div>
+
+                      <div class="cal-times"><span>07:00</span><span>08:00</span><span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span><span>14:00</span><span>15:00</span><span>16:00</span><span>17:00</span></div>
+
+                      <div class="cal-grid">
+                        <div class="lane is-done" data-day="MON 09">
+                          <span class="wl violet" style="--s:7.5;--d:1.5"><b>OPS-31</b><span>Nightly import job alerts</span><em>1.5h</em></span>
+                          <span class="wl teal" style="--s:9;--d:3"><b>APP-214</b><span>Checkout retry banner</span><em>3h</em></span>
+                          <span class="wl blue" style="--s:13;--d:1"><b>WEB-87</b><span>Pricing page copy review</span><em>1h</em></span>
+                          <span class="wl teal" style="--s:14;--d:2.5"><b>APP-214</b><span>Checkout retry banner</span><em>2.5h</em></span>
+                        </div>
+                        <div class="lane is-short" data-day="TUE 10">
+                          <span class="wl blue" style="--s:9;--d:2"><b>APP-219</b><span>Crash on empty cart</span><em>2h</em></span>
+                          <span class="wl blue" style="--s:11;--d:1"><b>WEB-87</b><span>Pricing page copy review</span><em>1h</em></span>
+                          <span class="wl teal" style="--s:13.5;--d:3"><b>APP-214</b><span>Checkout retry banner</span><em>3h</em></span>
+                        </div>
+                        <div class="lane is-done" data-day="WED 11">
+                          <span class="wl violet" style="--s:9;--d:1.5;--col:0;--cols:2"><b>DOC-12</b><span>API changelog for v2.3</span><em>1.5h</em></span>
+                          <span class="wl blue" style="--s:10;--d:1;--col:1;--cols:2"><b>WEB-87</b><span>Pricing page copy review</span><em>1h</em></span>
+                          <span class="wl teal" style="--s:11;--d:1.5"><b>APP-214</b><span>Checkout retry banner</span><em>1.5h</em></span>
+                          <span class="wl teal" style="--s:13;--d:4"><b>APP-221</b><span>Retry banner analytics events</span><em>4h</em></span>
+                        </div>
+                        <div class="lane is-short is-today" data-day="THU 12">
+                          <span class="wl blue" style="--s:9;--d:3"><b>APP-219</b><span>Crash on empty cart</span><em>3h</em></span>
+                          <span class="wl violet" style="--s:13;--d:1.5"><b>OPS-31</b><span>Nightly import job alerts</span><em>1.5h</em></span>
+                          <span class="slot" style="--s:14.5"><svg class="ic"><use href="#i-plus"/></svg><span class="slot-time">14:30</span></span>
+                        </div>
+                        <div class="lane is-future" data-day="FRI 13"></div>
+                        <div class="now-line" style="--s:14.667"><span>14:40</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Team worklogs -->
+                  <div class="b-view b-team" data-view-name="team">
+                    <div class="b-head">
+                      <div class="b-titles"><span class="b-title">Team worklogs</span><span class="b-summary">6 people · 148h logged in Mar 9 — Mar 13<span class="b-focus-only"> · 10 incomplete days</span></span></div>
+                      <div class="b-opts">
+                        <button type="button" class="b-switch" role="switch" aria-checked="false" data-action="focus" aria-label="Focus on incomplete days"><i class="tg" aria-hidden="true"><i></i></i><span>Focus<span class="sw-long"> on incomplete days</span></span><b class="b-count" aria-hidden="true">10</b></button>
+                        <span class="b-tabs" aria-hidden="true"><span class="sel">Week</span><span>Month</span></span>
+                      </div>
+                    </div>
+                    <div class="b-scope" aria-hidden="true">
+                      <span class="b-scope-group"><span class="b-scope-label">Projects</span><span class="chip"><svg class="ic"><use href="#i-folder"/></svg>APP<small>Storefront app</small></span><span class="chip"><svg class="ic"><use href="#i-folder"/></svg>WEB<small>Marketing site</small></span><span class="chip-add"><svg class="ic"><use href="#i-plus"/></svg>Add project</span></span>
+                      <span class="b-scope-group"><span class="b-scope-label">Pinned people</span><span class="chip"><i class="av av-s">MC</i>Maya Chen</span><span class="chip"><i class="av av-s">TI</i>Tomás Ilves</span><span class="chip-add"><svg class="ic"><use href="#i-plus"/></svg>Pin person</span></span>
+                    </div>
+                    <div class="tgrid-wrap">
+                      <table class="tgrid">
+                        <caption class="sr-only">Hours logged per person per day, week of March 9 (made-up data). Select a cell to see that day's worklogs.</caption>
+                        <thead><tr><th scope="col" class="pc">Person</th><th scope="col"><span>MON</span><strong>9</strong></th><th scope="col"><span>TUE</span><strong>10</strong></th><th scope="col"><span>WED</span><strong>11</strong></th><th scope="col" class="today-col"><span>THU</span><strong>12</strong></th><th scope="col"><span>FRI</span><strong>13</strong></th><th scope="col" class="tc">Total</th></tr></thead>
+                        <tbody id="team-body"></tbody>
+                        <tfoot><tr><th scope="row" class="pc">Day total</th><td>39h</td><td>35h</td><td>39.5h</td><td>34.5h</td><td>–</td><td class="tc">148h</td></tr></tfoot>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Log time dialog -->
+              <div class="b-modal b-modal-log" aria-hidden="true">
+                <div class="b-dialog">
+                  <button type="button" class="b-close" data-action="close" tabindex="-1"><svg class="ic"><use href="#i-x"/></svg></button>
+                  <span class="b-dlabel">NEW WORKLOG</span>
+                  <span class="b-dtitle">Log time to Jira</span>
+                  <p class="b-dcopy">Entries are saved against the selected Jira issue.</p>
+                  <span class="b-flabel">Jira issue</span>
+                  <div class="b-picker">
+                    <div class="b-filters"><span class="sel">Recent activity</span><span>Recently viewed</span></div>
+                    <div class="b-search"><svg class="ic"><use href="#i-search"/></svg><span class="b-query">cart</span><i class="caret"></i></div>
+                    <div class="b-options">
+                      <div class="b-group">Recent activity</div>
+                      <div class="b-opt active"><i class="it bug"><svg class="ic"><use href="#i-bug"/></svg></i><b>APP-219</b><span>Crash on empty cart</span><small>In Progress · 2h ago</small></div>
+                      <div class="b-group">All of Jira</div>
+                      <div class="b-opt"><i class="it story"><svg class="ic"><use href="#i-bookmark"/></svg></i><b>APP-176</b><span>Cart badge count drifts after sign-in</span><small>To Do · 3d ago</small></div>
+                      <div class="b-opt"><i class="it task"><svg class="ic"><use href="#i-task"/></svg></i><b>WEB-54</b><span>Abandoned-cart email template</span><small>In Review · 6d ago</small></div>
+                    </div>
+                  </div>
+                  <div class="b-fields">
+                    <span class="b-field"><span>Duration (hours)</span><span class="b-input">1.5</span></span>
+                    <span class="b-field"><span>Day</span><span class="b-input b-select"><span class="b-day-val">THU 12</span><svg class="ic"><use href="#i-chev-d"/></svg></span></span>
+                    <span class="b-field"><span>Start time</span><span class="b-input b-time-val">14:30</span></span>
+                  </div>
+                  <span class="b-field b-desc"><span>Work description</span><span class="b-input b-textarea">Guard checkout against an empty cart</span></span>
+                  <div class="b-dfoot"><span class="b-cancel">Cancel</span><span class="b-primary b-save"><svg class="ic"><use href="#i-check"/></svg>Save worklog</span></div>
+                </div>
+              </div>
+
+              <!-- Export dialog -->
+              <div class="b-modal b-modal-export" aria-hidden="true">
+                <div class="b-dialog b-dialog-export">
+                  <button type="button" class="b-close" data-action="close" tabindex="-1"><svg class="ic"><use href="#i-x"/></svg></button>
+                  <span class="b-dlabel">EXPORT</span>
+                  <span class="b-dtitle">Download logged time</span>
+                  <p class="b-dcopy">CSV files for Mar 9 — Mar 13 are saved to your Downloads folder.</p>
+                  <div class="b-scopes">
+                    <div class="b-scope-opt"><span class="tag">ME</span><div><strong>My calendar</strong><small>Your worklogs for this week</small></div><i></i></div>
+                    <div class="b-scope-opt sel"><span class="tag">TEAM</span><div><strong>Team worklogs</strong><small>APP, WEB, Maya Chen, Tomás Ilves · per-day summary and every worklog (2 files)</small></div><i><svg class="ic"><use href="#i-check"/></svg></i></div>
+                  </div>
+                  <div class="b-dfoot"><span class="b-cancel">Cancel</span><span class="b-primary b-save"><svg class="ic"><use href="#i-download"/></svg>Download CSV</span></div>
+                </div>
+              </div>
+
+              <!-- Team cell detail -->
+              <div class="b-modal b-modal-detail" aria-hidden="true">
+                <div class="b-dialog b-dialog-detail" role="dialog" aria-modal="false" aria-labelledby="detail-name">
+                  <button type="button" class="b-close" data-action="close" aria-label="Close worklog details"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+                  <div class="b-detail-head"><i class="av av-l" id="detail-av" aria-hidden="true">MC</i><div><span class="b-dtitle" id="detail-name">Maya Chen</span><span class="b-detail-meta" id="detail-meta">Tuesday, March 10 · 6h logged · 2h missing</span></div></div>
+                  <ul class="b-detail-list" id="detail-list"></ul>
+                </div>
+              </div>
+            </div>
+            <figcaption class="board-caption"><span class="board-caption-dot" aria-hidden="true"></span>Replica with made-up data.<span class="hover-only"> Point at an hour, then click it.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="steps">
+        <section class="step" data-step="1" aria-labelledby="s1">
+          <h2 id="s1"><span class="station" aria-hidden="true"></span>Every worklog, where it actually happened.</h2>
+          <p>Trackline reads your Jira worklogs and lays them out as a week or month calendar. The timeline stretches for the 07:30 start and the late fix, and entries that overlap sit side by side instead of hiding each other.</p>
+          <p class="step-note">Week and month views · weekends hidden by default</p>
+        </section>
+        <section class="step" data-step="2" aria-labelledby="s2">
+          <h2 id="s2"><span class="station" aria-hidden="true"></span>Click an hour. It’s logged in Jira.</h2>
+          <p>Point at the calendar and a 15-minute slot follows the cursor. Click it, then pick the issue from Recent activity or Recently viewed, or search all of Jira by summary or key. Set the duration, day, start time and a description, and the worklog is written straight to Jira.</p>
+          <p class="step-note">Jira issue-type icons, so bugs still look like bugs.</p>
+        </section>
+        <section class="step" data-step="3" aria-labelledby="s3">
+          <h2 id="s3"><span class="station" aria-hidden="true"></span>The days you missed, in coral.</h2>
+          <p>Turn on <strong>Focus on incomplete days</strong> and every working day below your target lights up with exactly how much is missing. Complete days and days that haven’t happened yet step back.</p>
+          <p class="step-note">Your target is your workday length: 8 hours unless you change it.</p>
+        </section>
+        <section class="step" data-step="4" aria-labelledby="s4">
+          <h2 id="s4"><span class="station" aria-hidden="true"></span>Your team’s week, one grid.</h2>
+          <p>Choose Jira projects and pin teammates to see people by days. Pinned people appear even when they logged nothing, which is usually the point. Click any cell to read that person’s worklogs for the day, with the same incomplete-day focus.</p>
+          <p class="step-note hover-only">Try a cell on the replica.</p>
+        </section>
+        <section class="step" data-step="5" aria-labelledby="s5">
+          <h2 id="s5"><span class="station" aria-hidden="true"></span>A CSV when someone asks for one.</h2>
+          <p>Export your own worklogs, or a team summary plus every worklog line as two files. They’re saved to your Downloads folder, named for the period.</p>
+          <ul class="files" aria-label="Example file names">
+            <li>trackline-team-summary-2026-03-09_2026-03-15.csv</li>
+            <li>trackline-team-worklogs-2026-03-09_2026-03-15.csv</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <section class="today" aria-labelledby="today-title">
+      <div class="today-copy">
+        <h2 id="today-title">A side panel that keeps today honest.</h2>
+        <p>Today’s pulse shows your hours against the target, with a one-click way to log the missing time. <strong>Needs attention</strong> lists the incomplete days. <strong>Recently worked</strong> opens the issue in Jira.</p>
+        <p>Pick a time for the daily reminder. On weekdays, if you’re below target, Trackline sends a native notification. It works while the app is running.</p>
+
+        <div class="dayrule" aria-hidden="true">
+          <div class="dayrule-track">
+            <span style="--h:0">09</span><span style="--h:1">10</span><span style="--h:2">11</span><span style="--h:3">12</span><span style="--h:4">13</span><span style="--h:5">14</span><span style="--h:6">15</span><span style="--h:7">16</span><span style="--h:8">17</span>
+            <i class="dayrule-mark" style="--h:7"></i>
+          </div>
+          <div class="notice" style="--h:7">
+            <img class="notice-icon" src="assets/favicon.svg" alt="" width="34" height="34">
+            <div><span class="notice-app">Trackline <em>now</em></span><strong>Log your time in Trackline</strong><span>You’ve logged 4.5h of 8h today.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pulse" aria-hidden="true">
+        <div class="pulse-head"><div><span class="pulse-label">THURSDAY PULSE</span><span class="pulse-total">4.5h <b>of 8h</b></span></div><svg class="ic"><use href="#i-clock"/></svg></div>
+        <div class="pulse-bar"><i style="--p:.5625"></i></div>
+        <p class="pulse-copy">3.5h to go · 2 entries logged today.</p>
+        <span class="pulse-action"><svg class="ic"><use href="#i-plus"/></svg>Log 3.5h for today</span>
+        <div class="pulse-reminder"><span class="pulse-bell"><svg class="ic"><use href="#i-bell"/></svg></span><div><strong>Daily reminder</strong><small>4:00 PM · weekdays, local time</small></div><i class="tg on"><i></i></i></div>
+        <div class="pulse-sec">
+          <div class="pulse-sec-head"><strong>Needs attention</strong><small>This week</small></div>
+          <div class="att"><i class="glyph coral"></i><div><strong>Tue, Mar 10</strong><small>2h missing</small></div><span class="att-log"><svg class="ic"><use href="#i-plus"/></svg>Log</span></div>
+          <div class="att"><i class="glyph coral"></i><div><strong>Thu, Mar 12</strong><small>3.5h missing</small></div><span class="att-log"><svg class="ic"><use href="#i-plus"/></svg>Log</span></div>
+        </div>
+        <div class="pulse-sec">
+          <div class="pulse-sec-head"><strong>Recently worked</strong><small>View all 6 <svg class="ic"><use href="#i-chev-r"/></svg></small></div>
+          <div class="rw"><i class="glyph blue"></i><div><b>APP-219</b><strong>Crash on empty cart</strong></div><em>5h</em><svg class="ic"><use href="#i-external"/></svg></div>
+          <div class="rw"><i class="glyph violet"></i><div><b>OPS-31</b><strong>Nightly import job alerts</strong></div><em>3h</em><svg class="ic"><use href="#i-external"/></svg></div>
+          <div class="rw"><i class="glyph teal"></i><div><b>APP-214</b><strong>Checkout retry banner</strong></div><em>10h</em><svg class="ic"><use href="#i-external"/></svg></div>
+          <div class="rw"><i class="glyph teal"></i><div><b>APP-221</b><strong>Retry banner analytics events</strong></div><em>4h</em><svg class="ic"><use href="#i-external"/></svg></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="details" aria-labelledby="details-title">
+      <h2 id="details-title">Small things, done properly.</h2>
+      <dl class="timetable">
+        <div><dt>Week and month</dt><dd>A timetable of your week, or a month grid with daily totals and the issues behind them.</dd></div>
+        <div><dt>Overlaps side by side</dt><dd>Two worklogs in the same hour share the slot instead of stacking on top of each other.</dd></div>
+        <div><dt>A timeline that stretches</dt><dd>An early start or a late finish widens the hours shown, so nothing falls off the edge.</dd></div>
+        <div><dt>Hide weekends</dt><dd>On by default. Turn it off if Saturday work is part of your week.</dd></div>
+        <div><dt>Your workday length</dt><dd>Eight hours unless you say otherwise. Every target and missing-time badge follows it.</dd></div>
+        <div><dt>Issue-type icons</dt><dd>The same icons Jira uses, so a bug in the picker looks like a bug.</dd></div>
+        <div><dt>Light and dark</dt><dd>Two themes for the room you work in. The moon on the replica above switches it.</dd></div>
+        <div><dt>A resizable window</dt><dd>A native desktop window you can size and place around the rest of your work.</dd></div>
+      </dl>
+    </section>
+
+    <section class="privacy" id="privacy" aria-labelledby="privacy-title">
+      <div class="privacy-copy">
+        <h2 id="privacy-title">Your computer talks to your Jira. That’s the whole route.</h2>
+        <p>Trackline has no server in the middle. Requests go straight from your machine to your Jira Cloud site, using your own Atlassian API token.</p>
+      </div>
+      <div class="route" aria-hidden="true">
+        <div class="route-stop"><span class="route-dot"><svg class="ic"><use href="#i-monitor"/></svg></span><strong>Your computer</strong><small>Trackline app</small></div>
+        <div class="route-line"><span class="route-ghost"><span class="route-dot ghost"><svg class="ic"><use href="#i-server"/></svg></span><strong>Trackline server</strong><small>doesn’t exist</small></span></div>
+        <div class="route-stop"><span class="route-dot"><svg class="ic"><use href="#i-cloud"/></svg></span><strong>your-team.atlassian.net</strong><small>Your Jira Cloud site</small></div>
+      </div>
+      <ul class="privacy-list">
+        <li><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg><div><strong>No account, no analytics.</strong> Nothing to sign up for, nothing reported back.</div></li>
+        <li><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><div><strong>Your token stays in your OS vault.</strong> Built apps keep it in the system credential store, such as macOS Keychain.</div></li>
+        <li><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg><div><strong>Only what your account can do.</strong> Trackline sees and changes exactly what your Jira user can, nothing more.</div></li>
+      </ul>
+      <p class="privacy-foot">Running in development with <code>npm run tauri dev</code>? Credentials are kept in a local, git-ignored file with owner-only permissions instead.</p>
+    </section>
+
+    <section class="connect" id="connect" aria-labelledby="connect-title">
+      <div class="connect-copy">
+        <h2 id="connect-title">Connect Jira in three steps.</h2>
+        <ol class="stations">
+          <li><span class="st-num" aria-hidden="true">1</span><div><strong>Create an API token</strong><p>At <a href="https://id.atlassian.com/manage-profile/security/api-tokens">id.atlassian.com → Security → API tokens</a>.</p></div></li>
+          <li><span class="st-num" aria-hidden="true">2</span><div><strong>Enter your details in Settings</strong><p>Your Jira site address, your Atlassian email and the token.</p></div></li>
+          <li><span class="st-num" aria-hidden="true">3</span><div><strong>Select Connect Jira</strong><p>Then Refresh calendar, and the worklogs you already have load from Jira.</p></div></li>
+        </ol>
+      </div>
+      <div class="settings" aria-hidden="true">
+        <div class="settings-intro"><svg class="ic"><use href="#i-key"/></svg><div><strong>Jira connection</strong><small>Connect directly with a personal Atlassian API token. Credentials stay local to this device.</small></div></div>
+        <div class="s-field"><span class="s-label">Jira site</span><span class="s-input">https://your-team.atlassian.net</span></div>
+        <div class="s-field"><span class="s-label">Atlassian email</span><span class="s-input">maya.chen@example.com</span></div>
+        <div class="s-field"><span class="s-label">API token <span class="s-link">Create a token<svg class="ic"><use href="#i-external"/></svg></span></span><span class="s-input s-secret">••••••••••••••••••••••••</span></div>
+        <div class="s-foot"><span><svg class="ic"><use href="#i-shield"/></svg>Stored securely on this device</span><span class="b-primary">Connect Jira</span></div>
+      </div>
+    </section>
+
+    <section class="source" id="source" aria-labelledby="source-title">
+      <div class="source-copy">
+        <h2 id="source-title">Build it from source.</h2>
+        <p>There are no prebuilt installers yet. Trackline runs from source on macOS, Windows and Linux, and it takes four commands.</p>
+        <ul class="prereqs" aria-label="Prerequisites">
+          <li><a href="https://nodejs.org">Node.js</a> 20 or newer</li>
+          <li><a href="https://www.rust-lang.org/tools/install">Rust</a>, stable</li>
+          <li>The <a href="https://tauri.app/start/prerequisites/">Tauri prerequisites</a> for your OS</li>
+        </ul>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar"><span>Terminal</span><button type="button" class="copy" data-copy="#commands"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copy commands</span></button></div>
+        <pre id="commands"><code><span class="cmd">git clone https://github.com/defrimhasani/trackline.git</span>
+<span class="cmd">cd trackline</span>
+<span class="cmd">npm install</span>
+<span class="cmd">npm run tauri dev</span></code></pre>
+        <p class="terminal-note">Want an app you can install? <code>npm run tauri build</code> writes a bundle to <code>src-tauri/target/release/bundle/</code>.</p>
+      </div>
+    </section>
+
+    <section class="close" aria-labelledby="close-title">
+      <h2 id="close-title">Close the week with nothing missing.</h2>
+      <p>Trackline is free and MIT licensed. Issues and pull requests are welcome.</p>
+      <a class="cta" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Get Trackline on GitHub</a>
+    </section>
+  </main>
+</div>
+
+<footer class="site-foot">
+  <div class="foot-row">
+    <a class="brand" href="#top" aria-label="Trackline, back to top">
+      <svg class="brand-icon" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0f1b2e"/><path d="M116 150h280v52H282v160h-52V202H116z" fill="#edf2f6"/><path d="M282 310h114v52H282z" fill="#16a89a"/></svg>
+      <span>Trackline</span>
+    </a>
+    <nav class="foot-nav" aria-label="Footer">
+      <a href="https://github.com/defrimhasani/trackline">GitHub</a>
+      <a href="https://github.com/defrimhasani/trackline/blob/main/LICENSE">MIT License</a>
+      <a href="https://github.com/defrimhasani/trackline/issues">Report an issue</a>
+    </nav>
+  </div>
+  <p class="foot-legal">MIT © Defrim Hasani. Trackline is an independent project and is not affiliated with or endorsed by Atlassian. Jira is a trademark of Atlassian.</p>
+</footer>
+</body>
+</html>

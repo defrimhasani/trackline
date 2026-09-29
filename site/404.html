@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page not found — Trackline</title>
+  <meta name="description" content="This page isn’t on the Trackline site. Head back to the product page or the GitHub repository.">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#17263f">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22512%22%20height%3D%22512%22%20viewBox%3D%220%200%20512%20512%22%3E%0A%20%20%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22%2317263f%22/%3E%0A%20%20%3Cpath%20d%3D%22M116%20150h280v52H282v160h-52V202H116z%22%20fill%3D%22%23edf2f6%22/%3E%0A%20%20%3Cpath%20d%3D%22M282%20310h114v52H282z%22%20fill%3D%22%2316a89a%22/%3E%0A%3C/svg%3E" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Manrope:wght@600;700;800&display=swap">
+  <style>
+    :root { --rail: #17263f; --rail-deep: #0f1b2e; --rail-ink: #dce7f5; --rail-muted: #a7b6cb; --rail-line: rgba(159,176,200,.2); --teal: #118f84; --teal-deep: #0d7f74; --teal-bright: #5ce0d2; --coral: #ef947c; color-scheme: dark; font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--rail); color: var(--rail-ink); font-size: 1.0625rem; line-height: 1.6; }
+    svg { display: block; }
+    ::selection { background: #75d8ce; color: #10243b; }
+    :focus-visible { outline: 2px solid var(--teal-bright); outline-offset: 3px; border-radius: 3px; }
+    .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .ic { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .lost { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: 0 clamp(24px, 6vw, 88px); }
+    .lost-head { height: 72px; display: flex; align-items: center; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; color: #fff; text-decoration: none; font: 800 15px/1 Manrope, ui-sans-serif, sans-serif; }
+    .brand-icon { width: 30px; height: 30px; border-radius: 7px; box-shadow: 0 0 0 1px rgba(159,176,200,.25); }
+    .lost-main { align-self: center; max-width: 720px; padding: 48px 0 72px; }
+    .lost-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 520px; margin-bottom: 48px; border: 1px solid var(--rail-line); border-radius: 9px; overflow: hidden; background: var(--rail-deep); }
+    .lost-day { position: relative; padding: 14px 12px 16px; border-left: 1px solid var(--rail-line); white-space: nowrap; }
+    .lost-day:first-child { border-left: 0; }
+    .lost-day::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #39bbaf; }
+    .lost-day span { display: block; color: var(--rail-muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+    .lost-day strong { display: block; margin-top: 2px; color: #fff; font: 800 19px/1.2 Manrope, sans-serif; }
+    .lost-day small { color: var(--rail-muted); font-size: 11px; font-weight: 700; }
+    .lost-day.is-gap { background: rgba(239,148,124,.14); }
+    .lost-day.is-gap::after { background: var(--coral); width: 0; }
+    .lost-day.is-gap strong { color: #ffc2b1; }
+    h1 { margin: 0; color: #fff; font: 800 clamp(2.4rem, 3vw + 1.4rem, 4rem)/1.08 Manrope, ui-sans-serif, sans-serif; letter-spacing: -.04em; text-wrap: balance; max-width: 14ch; }
+    p { margin: 22px 0 0; max-width: 44ch; }
+    .lost-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; margin-top: 36px; }
+    .cta { display: inline-flex; align-items: center; gap: 10px; padding: 15px 22px 15px 19px; border-radius: 6px; background: var(--teal); color: #fff; font: 800 1.1875rem/1.2 Manrope, ui-sans-serif, sans-serif; text-decoration: none; box-shadow: 0 8px 20px rgba(2,10,23,.22); transition: background .2s; }
+    .cta:hover { background: var(--teal-deep); }
+    .cta .ic { font-size: 20px; }
+    .cta-quiet { display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; color: var(--rail-ink); font-weight: 700; text-decoration: none; border-bottom: 1px solid rgba(220,231,245,.35); }
+    .cta-quiet:hover { color: #fff; border-bottom-color: var(--teal-bright); }
+    .lost-foot { padding: 22px 0 28px; border-top: 1px solid var(--rail-line); color: var(--rail-muted); font-size: .8125rem; }
+    @media (max-width: 480px) { .lost-day { padding: 10px 6px 12px; } .lost-day strong { font-size: 15px; } }
+  </style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+  <symbol id="i-arrow-l" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></symbol>
+</svg>
+<div class="lost">
+  <header class="lost-head">
+    <a class="brand" href="https://defrimhasani.github.io/trackline/" aria-label="Trackline home">
+      <svg class="brand-icon" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0f1b2e"/><path d="M116 150h280v52H282v160h-52V202H116z" fill="#edf2f6"/><path d="M282 310h114v52H282z" fill="#16a89a"/></svg>
+      <span>Trackline</span>
+    </a>
+  </header>
+  <main class="lost-main" id="main">
+    <div class="lost-board" aria-hidden="true">
+      <div class="lost-day"><span>MON</span><strong>09</strong><small>8h</small></div>
+      <div class="lost-day"><span>TUE</span><strong>10</strong><small>8h</small></div>
+      <div class="lost-day is-gap"><span>ERR</span><strong>404</strong><small>0h</small></div>
+      <div class="lost-day"><span>THU</span><strong>12</strong><small>8h</small></div>
+      <div class="lost-day"><span>FRI</span><strong>13</strong><small>8h</small></div>
+    </div>
+    <h1>No worklog at this address.</h1>
+    <p>The page you were looking for isn’t on the Trackline site. It may have moved, or the link has a typo.</p>
+    <div class="lost-actions">
+      <a class="cta" href="https://defrimhasani.github.io/trackline/"><svg class="ic" aria-hidden="true"><use href="#i-arrow-l"/></svg>Back to Trackline</a>
+      <a class="cta-quiet" href="https://github.com/defrimhasani/trackline"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Trackline on GitHub</a>
+    </div>
+  </main>
+  <footer class="lost-foot">Trackline is an independent project and is not affiliated with or endorsed by Atlassian. Jira is a trademark of Atlassian.</footer>
+</div>
+</body>
+</html>
