@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.4.1 — 2026-09-29
 
 ### Improved
 - **Clearer period controls.** The top bar now reads **Today · ‹ › · title**, with Today as a proper button, the previous and next arrows grouped together, and a larger week or month title, without the gap that used to split them.
