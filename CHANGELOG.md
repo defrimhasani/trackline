@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.4.0 — 2026-09-29
 
 ### New
 - **Edit worklogs.** Click an entry in the calendar and choose **Edit** to change its duration, day, start time or description. Changes are saved straight to Jira. To move time to a different issue, delete the worklog and log it again (Jira doesn't allow moving a worklog between issues).
