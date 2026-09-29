@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create draft release
+        id: create-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { version } = require('./package.json');
+            const tag = `v${version}`;
+            const existing = await github.rest.repos.listReleases({ owner: context.repo.owner, repo: context.repo.repo, per_page: 100 });
+            const match = existing.data.find(release => release.tag_name === tag);
+            if (match && !match.draft) core.setFailed(`Release ${tag} is already published. Bump the version in package.json, src-tauri/Cargo.toml and src-tauri/tauri.conf.json first.`);
+            if (match) return match.id;
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              name: `Trackline ${tag}`,
+              draft: true,
+              body: [
+                'A calm desktop timesheet for Jira Cloud.',
+                '',
+                '## Downloads',
+                '- **macOS (Apple Silicon):** `Trackline_*_aarch64.dmg`',
+                '- **macOS (Intel):** `Trackline_*_x64.dmg`',
+                '- **Windows:** `Trackline_*_x64-setup.exe` (or the `.msi`)',
+                '- **Linux:** `.AppImage`, `.deb` or `.rpm`',
+                '',
+                '## First launch',
+                'Trackline is not yet signed with a paid Apple or Microsoft certificate, so your system will warn you the first time.',
+                '- **macOS:** open the app once, then go to System Settings → Privacy & Security and select **Open Anyway**. Alternatively run `xattr -dr com.apple.quarantine /Applications/Trackline.app`.',
+                '- **Windows:** in the SmartScreen prompt select **More info → Run anyway**.',
+                '',
+                'Then open **Settings**, enter your Jira Cloud site, Atlassian email and an [API token](https://id.atlassian.com/manage-profile/security/api-tokens), and select **Connect Jira**.',
+              ].join('\n'),
+            });
+            return data.id;
+
+  build:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+  publish-release:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: Number('${{ needs.create-release.outputs.release_id }}'),
+              draft: false,
+              make_latest: 'true',
+            });
