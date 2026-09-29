@@ -89,6 +89,9 @@ Trackline is an independent project and is not affiliated with or endorsed by At
 
 ## Releasing
 
-1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
-2. Push a tag such as `v0.2.0`, or run the **Release** workflow from the Actions tab.
-3. The workflow builds macOS (Apple Silicon and Intel), Windows and Linux installers, attaches them to a GitHub Release, and publishes it when every build has succeeded.
+Every merge to `main` that changes the app (`src/`, `src-tauri/`, npm packages or build config) publishes a new release automatically:
+
+1. The **Release** workflow bumps the patch version (for example `0.1.1` → `0.1.2`) in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, and commits it back to `main`.
+2. It builds macOS (Apple Silicon and Intel), Windows and Linux installers and publishes them as a GitHub Release.
+
+Put `[minor]` or `[major]` in the merge commit message for a bigger version step, or `[skip release]` to skip releasing. You can also run the workflow manually from the Actions tab and choose the bump.

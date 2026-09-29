@@ -10,20 +10,47 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "Trackline", "width": 1440, "height": 900, "minWidth": 760, "minHeight": 560, "resizable": true }],
-    "security": { "csp": null }
+    "windows": [
+      {
+        "title": "Trackline",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 760,
+        "minHeight": 560,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "publisher": "Defrim Hasani",
     "copyright": "© 2026 Defrim Hasani. MIT License.",
     "category": "Productivity",
     "shortDescription": "A calm desktop timesheet for Jira Cloud",
     "longDescription": "Trackline shows your Jira Cloud worklogs as a week and month calendar, makes logging time fast, highlights incomplete days, and exports timesheets for you or your team.",
     "homepage": "https://defrimhasani.github.io/trackline/",
-    "macOS": { "signingIdentity": "-", "minimumSystemVersion": "11.0" },
-    "linux": { "deb": { "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"] } }
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ]
+      }
+    }
   }
 }
