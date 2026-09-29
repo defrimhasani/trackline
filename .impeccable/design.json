@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-29T00:00:00.000Z",
+  "title": "Design System: Trackline",
+  "extensions": {
+    "colorMeta": {
+      "live-route": { "role": "primary", "displayName": "Live Route", "canonical": "#16a89a", "tonalRamp": ["#123a38", "#15534f", "#187069", "#168d83", "#16a89a", "#43c4b6", "#87ddd2", "#c7f0ea"] },
+      "midnight-rail": { "role": "neutral", "displayName": "Midnight Rail", "canonical": "#17263f", "tonalRamp": ["#0d1523", "#17263f", "#263b59", "#39506d", "#60718a", "#9fb0c8", "#dce7f5", "#f5f9ff"] },
+      "cool-paper": { "role": "neutral", "displayName": "Cool Paper", "canonical": "#edf2f6", "tonalRamp": ["#344151", "#607087", "#8d9bad", "#b8c4d0", "#d4dfe9", "#e5ebf1", "#edf2f6", "#ffffff"] },
+      "review-blue": { "role": "secondary", "displayName": "Review Blue", "canonical": "#7588e9", "tonalRamp": ["#252d52", "#384979", "#5065ae", "#7588e9", "#9aa9f1", "#c1cbfa", "#dce3ff", "#f1f3ff"] },
+      "attention-coral": { "role": "tertiary", "displayName": "Attention Coral", "canonical": "#ef947c", "tonalRamp": ["#562b22", "#71392d", "#a45645", "#cf715d", "#ef947c", "#f7b5a4", "#ffd8ce", "#fff1ed"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Dispatch Headline", "purpose": "Workspace titles and primary time totals." },
+      "title": { "displayName": "Station Title", "purpose": "Dates and compact panel totals." },
+      "body": { "displayName": "Working Copy", "purpose": "Dense issue context and controls." },
+      "label": { "displayName": "Timetable Label", "purpose": "Issue keys and system categories." }
+    },
+    "shadows": [
+      { "name": "data-plate", "value": "0 9px 24px rgba(31, 53, 82, .055)", "purpose": "Ambient lift for the main calendar plate on the light workspace." },
+      { "name": "protected-focus", "value": "0 22px 60px rgba(2, 10, 23, .3)", "purpose": "Dialogs that interrupt the calendar for time entry or export." }
+    ],
+    "motion": [
+      { "name": "state-standard", "value": "200ms ease", "purpose": "Theme, toggle, and control-state transitions." }
+    ],
+    "breakpoints": [
+      { "name": "compact-desktop", "value": "1190px" },
+      { "name": "minimum-window", "value": "1120px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "The single immediate-action control for logging or confirming an export.",
+      "html": "<button class=\"ds-btn-primary\">LOG TIME</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:7px;border:0;border-radius:5px;padding:9px 13px;background:#16a89a;color:#fff;font:700 12px 'DM Sans',sans-serif;cursor:pointer;transition:background .2s}.ds-btn-primary:hover{background:#118f84}.ds-btn-primary:focus-visible{outline:2px solid #34bdb0;outline-offset:2px}"
+    },
+    {
+      "name": "Worklog Block", "kind": "custom", "refersTo": "worklog-teal", "description": "A duration-positioned record in a weekly schedule.",
+      "html": "<button class=\"ds-worklog\"><b>CIR-482</b><span>Calendar export states</span><em>2h</em></button>",
+      "css": ".ds-worklog{width:170px;text-align:left;border:0;border-top:2px solid #30aa9f;border-radius:4px;padding:8px;background:#c7f0ea;color:#153852;font-family:'DM Sans',sans-serif;cursor:pointer}.ds-worklog b,.ds-worklog span,.ds-worklog em{display:block}.ds-worklog b{font-size:9px;letter-spacing:.05em}.ds-worklog span{font-size:10px;font-weight:600;line-height:16px}.ds-worklog em{margin-top:3px;font-size:9px;font-style:normal;opacity:.75}.ds-worklog:hover{filter:brightness(.97)}.ds-worklog:focus-visible{outline:2px solid #34bdb0;outline-offset:2px}"
+    },
+    {
+      "name": "Rail Navigation", "kind": "nav", "refersTo": "navigation-rail", "description": "Persistent desktop navigation with a route-style active marker.",
+      "html": "<button class=\"ds-nav-active\">Calendar</button>",
+      "css": ".ds-nav-active{border:0;border-radius:8px;box-shadow:inset 2px 0 #5ce0d2;background:#263b59;color:#f4fbff;padding:11px 12px;font:14px 'DM Sans',sans-serif;cursor:pointer}.ds-nav-active:focus-visible{outline:2px solid #5ce0d2;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Dispatch Board",
+    "overview": "Trackline makes timekeeping feel like a precise, continuously readable operating board. Its visual language is professional rather than severe: deep navy establishes a stable control room, cool paper keeps dense worklog data breathable, and a single live teal directs action and completion.",
+    "keyCharacteristics": ["Continuous weekly schedule instead of metric-first dashboard panels.", "Fine, low-contrast route rules carry dense structure without noise.", "Dark navigation rail and light data plane create stable orientation.", "Teal belongs to live action and completion; other accents distinguish work context."],
+    "rules": [{ "name": "The Single Signal Rule", "body": "Teal is reserved for the action that moves the user forward and the system state that is fully current. Do not turn every interactive object teal.", "section": "colors" }, { "name": "The Timetable Rule", "body": "When schedule data becomes dense, preserve the label rhythm and let visual rank come from position, weight, and spacing—not a parade of font families or oversized numbers.", "section": "typography" }],
+    "dos": ["Do use a single schedule grid as the source of visual truth for date, duration, and completion.", "Do reserve #16a89a for primary action and current/live completion.", "Do keep Jira issue keys in compact high-weight labels alongside readable issue summaries.", "Do present detailed entry and export tasks in focused dialogs with explicit cancel actions."],
+    "donts": ["Don't replace the timetable with a dashboard grid of equal cards.", "Don't use color as the only signal for an issue's state or type.", "Don't introduce decorative glow, glass effects, gradient text, or oversized pill controls.", "Don't add generic metric widgets where a calendar position can show the real work."]
+  }
+}

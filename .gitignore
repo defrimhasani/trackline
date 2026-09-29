@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+site/dist/
+src-tauri/target/
+src-tauri/gen/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# Local development credentials for the Trackline desktop app
+src-tauri/.trackline-dev.json
+.env
+.env.*
+
+# Local editor and AI-tool configuration
+.claude/
+.codex/
+.grok/
+.impeccable/config.local.json
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
