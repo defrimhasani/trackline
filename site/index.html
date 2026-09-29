@@ -191,6 +191,7 @@
                     <div class="b-head">
                       <div class="b-titles"><span class="b-title">Team worklogs</span><span class="b-summary">6 people · 148h logged in Mar 9 — Mar 13<span class="b-focus-only"> · 10 incomplete days</span></span></div>
                       <div class="b-opts">
+                        <span class="b-tabs" aria-hidden="true"><span class="sel">People</span><span>Tickets</span></span>
                         <button type="button" class="b-switch" role="switch" aria-checked="false" data-action="focus" aria-label="Focus on incomplete days"><i class="tg" aria-hidden="true"><i></i></i><span>Focus<span class="sw-long"> on incomplete days</span></span><b class="b-count" aria-hidden="true">10</b></button>
                         <span class="b-tabs" aria-hidden="true"><span class="sel">Week</span><span>Month</span></span>
                       </div>
@@ -205,6 +206,52 @@
                         <thead><tr><th scope="col" class="pc">Person</th><th scope="col"><span>MON</span><strong>9</strong></th><th scope="col"><span>TUE</span><strong>10</strong></th><th scope="col"><span>WED</span><strong>11</strong></th><th scope="col" class="today-col"><span>THU</span><strong>12</strong></th><th scope="col"><span>FRI</span><strong>13</strong></th><th scope="col" class="tc">Total</th></tr></thead>
                         <tbody id="team-body"></tbody>
                         <tfoot><tr><th scope="row" class="pc">Day total</th><td>39h</td><td>35h</td><td>39.5h</td><td>34.5h</td><td>–</td><td class="tc">148h</td></tr></tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- Team worklogs by ticket -->
+                  <div class="b-view b-tickets" data-view-name="tickets">
+                    <div class="b-head">
+                      <div class="b-titles"><span class="b-title">Team worklogs</span><span class="b-summary">10 tickets · 148h logged in Mar 9 — Mar 13</span></div>
+                      <div class="b-opts">
+                        <span class="b-tabs" aria-hidden="true"><span>People</span><span class="sel">Tickets</span></span>
+                        <span class="b-tabs" aria-hidden="true"><span class="sel">Week</span><span>Month</span></span>
+                      </div>
+                    </div>
+                    <div class="tk-summary">
+                      <div class="tk-card">
+                        <span class="tk-card-title">Cost / capitalized <b>148h</b></span>
+                        <div class="tk-split" role="img" aria-label="Capitalized 68.5 hours, 46 percent. Cost 79.5 hours, 54 percent."><i class="capex" style="--h:68.5"></i><i class="opex" style="--h:79.5"></i></div>
+                        <ul class="tk-legend" aria-hidden="true"><li><i class="dot capex"></i>Capitalized<b>68.5h</b><small>46%</small></li><li><i class="dot opex"></i>Cost<b>79.5h</b><small>54%</small></li></ul>
+                      </div>
+                      <div class="tk-card">
+                        <span class="tk-card-title">Work type</span>
+                        <ul class="tk-types">
+                          <li><span>New Features</span><i style="--p:.46"></i><b>68.5h</b></li>
+                          <li><span>Maintenance</span><i style="--p:.42"></i><b>62h</b></li>
+                          <li><span>Bug</span><i style="--p:.11"></i><b>16h</b></li>
+                          <li><span>Not set</span><i style="--p:.01"></i><b>1.5h</b></li>
+                        </ul>
+                      </div>
+                    </div>
+                    <div class="tgrid-wrap tk-wrap">
+                      <table class="tk-table">
+                        <caption class="sr-only">Hours logged per ticket, week of March 9 (made-up data).</caption>
+                        <thead><tr><th scope="col" class="tk-ticket">Ticket</th><th scope="col" class="tk-type">Work type</th><th scope="col">Cost/Capitalized</th><th scope="col" class="num">Logged</th><th scope="col">Total logged</th><th scope="col" class="tk-by">Logged by</th></tr></thead>
+                        <tbody>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it story"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg></i><span><span class="tk-line"><b>APP-233</b><strong>Saved addresses form validation</strong></span><small>In Progress</small></span></span></th><td class="tk-type"><span class="fchip">New Features</span></td><td><span class="fchip capex">Capitalized</span></td><td class="num strong">21.5h</td><td><span class="spent"><span>30.5h <small>of 24h</small></span><i class="spent-bar over" style="--p:1"></i><small class="over-text">6.5h over</small></span></td><td class="tk-by"><span class="stack"><i class="av">AO</i><i class="av">SW</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it story"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg></i><span><span class="tk-line"><b>APP-214</b><strong>Checkout retry banner</strong></span><small>In Review</small></span></span></th><td class="tk-type"><span class="fchip">New Features</span></td><td><span class="fchip capex">Capitalized</span></td><td class="num strong">21h</td><td><span class="spent"><span>27h <small>of 32h</small></span><i class="spent-bar" style="--p:.84"></i></span></td><td class="tk-by"><span class="stack"><i class="av">JW</i><i class="av">MC</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it task"><svg class="ic" aria-hidden="true"><use href="#i-task"/></svg></i><span><span class="tk-line"><b>WEB-87</b><strong>Pricing page copy review</strong></span><small>In Review</small></span></span></th><td class="tk-type"><span class="fchip">Maintenance</span></td><td><span class="fchip opex">Cost</span></td><td class="num strong">21h</td><td><span class="spent"><span>21h <small>of 24h</small></span><i class="spent-bar" style="--p:.88"></i></span></td><td class="tk-by"><span class="stack"><i class="av">LR</i><i class="av">SW</i><i class="av">MC</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it task"><svg class="ic" aria-hidden="true"><use href="#i-task"/></svg></i><span><span class="tk-line"><b>WEB-95</b><strong>Cookie banner translations</strong></span><small>In Progress</small></span></span></th><td class="tk-type"><span class="fchip">Maintenance</span></td><td><span class="fchip opex">Cost</span></td><td class="num strong">21h</td><td><span class="spent"><span>23h <small>of 24h</small></span><i class="spent-bar" style="--p:.96"></i></span></td><td class="tk-by"><span class="stack"><i class="av">JW</i><i class="av">LR</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it task"><svg class="ic" aria-hidden="true"><use href="#i-task"/></svg></i><span><span class="tk-line"><b>WEB-91</b><strong>Blog index performance</strong></span><small>In Progress</small></span></span></th><td class="tk-type"><span class="fchip">Maintenance</span></td><td><span class="fchip opex">Cost</span></td><td class="num strong">17h</td><td><span class="spent"><span>17h <small>no estimate</small></span></span></td><td class="tk-by"><span class="stack"><i class="av">AO</i><i class="av">LR</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it bug"><svg class="ic" aria-hidden="true"><use href="#i-bug"/></svg></i><span><span class="tk-line"><b>APP-219</b><strong>Crash on empty cart</strong></span><small>In Progress</small></span></span></th><td class="tk-type"><span class="fchip">Bug</span></td><td><span class="fchip opex">Cost</span></td><td class="num strong">16h</td><td><span class="spent"><span>16h <small>of 8h</small></span><i class="spent-bar over" style="--p:1"></i><small class="over-text">8h over</small></span></td><td class="tk-by"><span class="stack"><i class="av">JW</i><i class="av">MC</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it task"><svg class="ic" aria-hidden="true"><use href="#i-task"/></svg></i><span><span class="tk-line"><b>APP-221</b><strong>Retry banner analytics events</strong></span><small>In Progress · in APP-214</small></span></span></th><td class="tk-type"><span class="fchip">New Features</span></td><td><span class="fchip capex">Capitalized</span></td><td class="num strong">15h</td><td><span class="spent"><span>15h <small>of 16h</small></span><i class="spent-bar" style="--p:.94"></i></span></td><td class="tk-by"><span class="stack"><i class="av">SW</i><i class="av">MC</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it story"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg></i><span><span class="tk-line"><b>APP-230</b><strong>Order history pagination</strong></span><small>In Progress</small></span></span></th><td class="tk-type"><span class="fchip">New Features</span></td><td><span class="fchip capex">Capitalized</span></td><td class="num strong">11h</td><td><span class="spent"><span>11h <small>of 16h</small></span><i class="spent-bar" style="--p:.69"></i></span></td><td class="tk-by"><span class="stack"><i class="av">AO</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it task"><svg class="ic" aria-hidden="true"><use href="#i-task"/></svg></i><span><span class="tk-line"><b>OPS-31</b><strong>Nightly import job alerts</strong></span><small>Done</small></span></span></th><td class="tk-type"><span class="fchip">Maintenance</span></td><td><span class="fchip opex">Cost</span></td><td class="num strong">3h</td><td><span class="spent"><span>3h <small>of 4h</small></span><i class="spent-bar" style="--p:.75"></i></span></td><td class="tk-by"><span class="stack"><i class="av">MC</i></span></td></tr>
+                          <tr><th scope="row" class="tk-ticket"><span class="tk-cell"><i class="it task"><svg class="ic" aria-hidden="true"><use href="#i-task"/></svg></i><span><span class="tk-line"><b>DOC-12</b><strong>API changelog for v2.3</strong></span><small>In Progress</small></span></span></th><td class="tk-type"><span class="funset">Not set</span></td><td><span class="fchip opex">Cost</span></td><td class="num strong">1.5h</td><td><span class="spent"><span>1.5h <small>no estimate</small></span></span></td><td class="tk-by"><span class="stack"><i class="av">MC</i></span></td></tr>
+                        </tbody>
+                        <tfoot><tr><th scope="row" class="tk-ticket">10 tickets</th><td class="tk-type"></td><td></td><td class="num strong">148h</td><td></td><td class="tk-by"></td></tr></tfoot>
                       </table>
                     </div>
                   </div>
@@ -286,13 +333,18 @@
           <p class="step-note">Your target is your workday length: 8 hours unless you change it.</p>
         </section>
         <section class="step" data-step="4" aria-labelledby="s4">
-          <h2 id="s4"><span class="station" aria-hidden="true"></span>Your team’s week, by person or by ticket.</h2>
+          <h2 id="s4"><span class="station" aria-hidden="true"></span>Your team’s week, one grid.</h2>
           <p>Choose Jira projects and pin teammates to see people by days. Pinned people appear even when they logged nothing, which is usually the point. Click any cell to read that person’s worklogs for the day, with the same incomplete-day focus.</p>
-          <p>Switch to <strong>Tickets</strong> for one row per ticket: work type, cost or capitalized, the estimate against time logged, and who logged it. A bar above the table splits the hours into capitalized and cost.</p>
           <p class="step-note hover-only">Try a cell on the replica.</p>
         </section>
         <section class="step" data-step="5" aria-labelledby="s5">
-          <h2 id="s5"><span class="station" aria-hidden="true"></span>A CSV when someone asks for one.</h2>
+          <h2 id="s5"><span class="station" aria-hidden="true"></span>Every ticket, costed.</h2>
+          <p>Switch the team view to <strong>Tickets</strong>. Each row shows the work type, whether the work is capitalized or a cost, the hours logged this week, the total against its estimate, and who logged the time.</p>
+          <p>The bar above the table splits the week into capitalized and cost hours, so the finance question already has an answer.</p>
+          <p class="step-note">Trackline finds your Work type and Cost/Capitalized fields by name. You can change them in Settings.</p>
+        </section>
+        <section class="step" data-step="6" aria-labelledby="s6">
+          <h2 id="s6"><span class="station" aria-hidden="true"></span>A CSV when someone asks for one.</h2>
           <p>Export your own worklogs, or a team summary, every worklog line and per-ticket totals as three files. They’re saved to your Downloads folder, named for the period.</p>
           <ul class="files" aria-label="Example file names">
             <li>trackline-team-summary-2026-03-09_2026-03-15.csv</li>

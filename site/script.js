@@ -108,7 +108,8 @@
     { view: 'calendar', focus: 'off', dialog: 'log' },
     { view: 'calendar', focus: 'on', dialog: 'none' },
     { view: 'team', focus: 'on', dialog: 'none' },
-    { view: 'team', focus: 'on', dialog: 'export' },
+    { view: 'tickets', focus: 'off', dialog: 'none' },
+    { view: 'tickets', focus: 'off', dialog: 'export' },
   ];
 
   /* ---------- Controls inside the replica ---------- */
