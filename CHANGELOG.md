@@ -2,6 +2,14 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### Fixed
+- **Far fewer keychain prompts on macOS.** Trackline now keeps your Jira credentials in a single keychain item and reads it once per session, instead of reading five separate items on almost every request. Existing credentials move over automatically, so you don't need to reconnect. Choose **Always Allow** when macOS asks, and it won't ask again until the next update.
+
+### New
+- **Refresh button.** The top bar has a Refresh button (or press ⌘R / Ctrl+R) that reloads the current week or month from Jira in the calendar and on the Worklogs page. Your entries stay on screen while it loads.
+
 ## v0.3.0 — 2026-09-29
 
 ### New

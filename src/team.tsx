@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FolderKanban, Pin, Plus, RefreshCw, Search, UserRound, X } from 'lucide-react';
+import { FolderKanban, Pin, Plus, Search, UserRound, X } from 'lucide-react';
 import { formatHours, hoursNumber, isWeekend, localDate, readableError, weekdayLabels } from './utils';
 import { TicketTable, buildTicketRows, ticketExportFile, type TeamIssue } from './tickets';
 
@@ -29,6 +29,7 @@ export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const shownKey = useRef('');
   const projectKeys = scope.projects.map(project => project.key);
   const accountIds = scope.people.map(person => person.accountId);
   const scopeKey = `${projectKeys.join(',')}|${accountIds.join(',')}|${fields.workTypeField ?? ''}|${fields.costField ?? ''}`;
@@ -37,10 +38,12 @@ export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean
     if (!enabled) return;
     const cacheKey = `${scopeKey}|${range.start}|${range.end}`;
     const cached = cache.current.get(cacheKey);
-    if (cached) { setWorklogs(cached.worklogs); setIssues(cached.issues); setIsLoading(false); setError(''); return; }
+    if (cached) { shownKey.current = cacheKey; setWorklogs(cached.worklogs); setIssues(cached.issues); setIsLoading(false); setError(''); return; }
     if (!projectKeys.length && !accountIds.length) { setWorklogs([]); setIssues([]); setIsLoading(false); setError(''); return; }
     let isCurrent = true;
-    setIsLoading(true); setError(''); setWorklogs([]); setIssues([]);
+    setIsLoading(true); setError('');
+    if (shownKey.current !== cacheKey) { setWorklogs([]); setIssues([]); }
+    shownKey.current = cacheKey;
     invoke<{ worklogs: TeamWorklog[]; issues: TeamIssue[] }>('get_team_worklogs', {
       projectKeys, accountIds, startDate: range.start, endDate: range.end,
       startedAfter: new Date(`${range.start}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${range.end}T00:00:00`).getTime() + 86_400_000,
@@ -207,7 +210,6 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
           <button className={calendarMode === 'week' ? 'selected' : ''} aria-pressed={calendarMode === 'week'} onClick={() => props.onModeChange('week')}>Week</button>
           <button className={calendarMode === 'month' ? 'selected' : ''} aria-pressed={calendarMode === 'month'} onClick={() => props.onModeChange('month')}>Month</button>
         </div>
-        <button type="button" className="icon-button" onClick={onRefresh} disabled={isLoading || !hasScope} aria-label="Refresh team worklogs" title="Refresh from Jira"><RefreshCw size={16} /></button>
       </div>
     </div>
 

@@ -117,6 +117,8 @@ export default function App() {
   const [syncError, setSyncError] = useState('');
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
   const rangeCache = useRef<CachedRange[]>([]);
+  const [calendarReload, setCalendarReload] = useState(0);
+  const shownRange = useRef('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [jiraAccount, setJiraAccount] = useState<JiraConnection | null>(null);
   const [siteUrl, setSiteUrl] = useState('');
@@ -145,8 +147,10 @@ export default function App() {
     let isCurrentRange = true;
     const { start, end } = range;
     const cached = rangeCache.current.find(entry => entry.start <= start && entry.end >= end);
-    if (cached) { setLogs(cached.logs.filter(log => log.date >= start && log.date < end)); setIsCalendarLoading(false); return; }
-    setIsCalendarLoading(true); setLogs([]);
+    if (cached) { shownRange.current = `${start}|${end}`; setLogs(cached.logs.filter(log => log.date >= start && log.date < end)); setIsCalendarLoading(false); return; }
+    setIsCalendarLoading(true);
+    if (shownRange.current !== `${start}|${end}`) setLogs([]);
+    shownRange.current = `${start}|${end}`;
     invoke<JiraConnection>('jira_connection').then(connection => {
       if (isCurrentRange) setJiraAccount(connection);
       if (!connection.connected) throw new Error('Connect your Jira account from Settings to load worklogs.');
@@ -163,7 +167,7 @@ export default function App() {
       })
       .catch(error => { if (!isCurrentRange) return; setSyncError(readableError(error)); setSyncState('error'); setIsCalendarLoading(false); });
     return () => { isCurrentRange = false; };
-  }, [range.start, range.end]);
+  }, [range.start, range.end, calendarReload]);
   const connectToJira = async (event: React.FormEvent) => {
     event.preventDefault();
     setIsConnecting(true); setSyncState('loading'); setSyncError('');
@@ -227,6 +231,18 @@ export default function App() {
   const teamPeriodDays = hideWeekends ? teamDates.filter(date => date.getDay() % 6 !== 0) : teamDates;
   const hasTeamScope = teamScope.projects.length > 0 || teamScope.people.length > 0;
   const teamScopeText = [...teamScope.projects.map(project => project.key), ...teamScope.people.map(person => person.displayName)].join(', ');
+  const refreshData = () => {
+    rangeCache.current = [];
+    setCalendarReload(key => key + 1);
+    team.refresh();
+  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r' && !event.shiftKey) { event.preventDefault(); refreshData(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   const openExport = () => { setExportScope(view === 'worklogs' && hasTeamScope ? 'Team worklogs' : 'My calendar'); setExportError(''); setModal('export'); };
   const recentIssues = [...periodLogs.reduce((issues, log) => {
     const current = issues.get(log.issue);
@@ -394,7 +410,7 @@ export default function App() {
         <span className="settings-note"><Check size={14} />Changes apply immediately</span>
       </header> : <header className="topbar">
           <div className="week-switcher"><button onClick={() => movePeriod(-1)} aria-label={`Previous ${calendarMode}`}><ChevronLeft size={19} /></button><div>{calendarMode === 'month' ? <MonthPicker value={monthStart} label={periodLabel} onChange={setFocusDate} /> : <strong>{periodLabel}</strong>}<span aria-live="polite">{(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? 'Syncing Jira worklogs…' : view === 'worklogs' ? 'Team worklogs' : 'Jira worklog calendar'}</span></div><button onClick={() => movePeriod(1)} aria-label={`Next ${calendarMode}`}><ChevronRight size={19} /></button><button className="today-button" onClick={() => setFocusDate(new Date())}>Today</button></div>
-        <div className="top-actions"><button className="icon-button" aria-label="Search"><Search size={19} /></button><button className="icon-button theme-toggle" onClick={() => setIsDark(value => !value)} aria-label="Toggle color theme">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button><button className="export-button" onClick={openExport}><Download size={17} />Export</button><button className="primary-button" onClick={() => openLogDialog()}><Plus size={18} />Log time</button></div>
+        <div className="top-actions"><button className={`icon-button refresh-button${(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? ' is-spinning' : ''}`} onClick={refreshData} disabled={view === 'worklogs' ? team.isLoading : isCalendarLoading} aria-label="Refresh from Jira" title="Refresh from Jira (⌘R)"><RefreshCw size={18} /></button><button className="icon-button theme-toggle" onClick={() => setIsDark(value => !value)} aria-label="Toggle color theme">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button><button className="export-button" onClick={openExport}><Download size={17} />Export</button><button className="primary-button" onClick={() => openLogDialog()}><Plus size={18} />Log time</button></div>
       </header>}
 
        {view === 'settings' ? <section className="settings-page" aria-labelledby="settings-title">

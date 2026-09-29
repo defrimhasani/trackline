@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
 
@@ -13,36 +13,77 @@ struct JiraWorklog { id: String, date: String, started_at: String, issue: String
 #[serde(rename_all = "camelCase")]
 struct JiraConnection { connected: bool, display_name: Option<String>, site_name: Option<String> }
 
-fn keychain(account: &str) -> Result<keyring::Entry, String> { keyring::Entry::new(KEYCHAIN_SERVICE, account).map_err(|_| "Trackline could not access macOS Keychain.".to_string()) }
+const CREDENTIALS_ACCOUNT: &str = "credentials";
+const LEGACY_ACCOUNTS: [&str; 5] = ["site-url", "email", "api-token", "account-id", "display-name"];
+const NOT_CONNECTED: &str = "Connect Jira from Settings before loading worklogs.";
 
-#[derive(Default, Deserialize, Serialize)]
-struct DevCredentials(BTreeMap<String, String>);
+type CredentialStore = BTreeMap<String, String>;
+static CREDENTIALS: std::sync::Mutex<Option<CredentialStore>> = std::sync::Mutex::new(None);
+
+fn keychain(account: &str) -> Result<keyring::Entry, String> { keyring::Entry::new(KEYCHAIN_SERVICE, account).map_err(|_| "Trackline could not access the system keychain.".to_string()) }
 
 fn dev_credentials_path() -> Result<PathBuf, String> {
   if let Ok(path) = std::env::var("TRACKLINE_DEV_STORAGE_PATH") { return Ok(PathBuf::from(path)); }
   Ok(std::env::current_dir().map_err(|_| "Trackline could not resolve its development folder.".to_string())?.join(".trackline-dev.json"))
 }
 
-fn save_secret(account: &str, value: &str) -> Result<(), String> {
+/// Reads all credentials in one go: a single keychain item in release builds (one prompt at most),
+/// or the git-ignored JSON file in development builds.
+fn read_store() -> Result<CredentialStore, String> {
+  if cfg!(debug_assertions) {
+    return match fs::read_to_string(dev_credentials_path()?) {
+      Ok(content) => serde_json::from_str(&content).map_err(|_| "Trackline development credentials are unreadable. Reconnect from Settings.".to_string()),
+      Err(_) => Ok(CredentialStore::new()),
+    };
+  }
+  match keychain(CREDENTIALS_ACCOUNT)?.get_password() {
+    Ok(content) => serde_json::from_str(&content).map_err(|_| "Trackline's saved credentials are unreadable. Reconnect from Settings.".to_string()),
+    Err(keyring::Error::NoEntry) => migrate_legacy_items(),
+    Err(_) => Err("Trackline could not read your Jira credentials from the keychain. Allow access when asked, then try again.".to_string()),
+  }
+}
+
+/// Earlier versions stored each value as its own keychain item. Copy them into the single item once.
+/// The old items are left in place: deleting them could ask for keychain access a second time.
+fn migrate_legacy_items() -> Result<CredentialStore, String> {
+  let mut store = CredentialStore::new();
+  for account in LEGACY_ACCOUNTS {
+    if let Ok(entry) = keychain(account) { if let Ok(value) = entry.get_password() { store.insert(account.to_owned(), value); } }
+  }
+  if !store.is_empty() { write_store(&store)?; }
+  Ok(store)
+}
+
+fn write_store(store: &CredentialStore) -> Result<(), String> {
+  let content = serde_json::to_string(store).map_err(|_| "Trackline could not prepare your credentials.".to_string())?;
   if cfg!(debug_assertions) {
     let path = dev_credentials_path()?;
-    let content = fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_owned());
-    let mut credentials: DevCredentials = serde_json::from_str(&content).unwrap_or_default();
-    credentials.0.insert(account.to_owned(), value.to_owned());
-    fs::write(&path, serde_json::to_string_pretty(&credentials).map_err(|_| "Trackline could not prepare development credentials.".to_string())?).map_err(|_| "Trackline could not save development credentials.".to_string())?;
+    fs::write(&path, content).map_err(|_| "Trackline could not save development credentials.".to_string())?;
     #[cfg(unix)] { fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o600)).map_err(|_| "Trackline could not protect development credentials.".to_string())?; }
     return Ok(());
   }
-  keychain(account)?.set_password(value).map_err(|_| "Trackline could not save credentials in the OS credential vault.".to_string())
+  keychain(CREDENTIALS_ACCOUNT)?.set_password(&content).map_err(|_| "Trackline could not save credentials in the system keychain.".to_string())
+}
+
+/// Returns the credentials, reading storage only the first time in each app session.
+fn credentials() -> Result<CredentialStore, String> {
+  let mut cache = CREDENTIALS.lock().map_err(|_| "Trackline could not read its credentials.".to_string())?;
+  if let Some(store) = cache.as_ref() { return Ok(store.clone()); }
+  let store = read_store()?;
+  *cache = Some(store.clone());
+  Ok(store)
+}
+
+fn save_credentials(values: &[(&str, &str)]) -> Result<(), String> {
+  let mut store = credentials().unwrap_or_default();
+  for (account, value) in values { store.insert((*account).to_owned(), (*value).to_owned()); }
+  write_store(&store)?;
+  *CREDENTIALS.lock().map_err(|_| "Trackline could not update its credentials.".to_string())? = Some(store);
+  Ok(())
 }
 
 fn get_secret(account: &str) -> Result<String, String> {
-  if cfg!(debug_assertions) {
-    let content = fs::read_to_string(dev_credentials_path()?).map_err(|_| "Connect Jira from Settings before loading worklogs.".to_string())?;
-    let credentials: DevCredentials = serde_json::from_str(&content).map_err(|_| "Trackline development credentials are unreadable. Reconnect from Settings.".to_string())?;
-    return credentials.0.get(account).cloned().ok_or_else(|| "Connect Jira from Settings before loading worklogs.".to_string());
-  }
-  keychain(account)?.get_password().map_err(|_| "Connect Jira from Settings before loading worklogs.".to_string())
+  credentials()?.get(account).cloned().ok_or_else(|| NOT_CONNECTED.to_string())
 }
 
 fn normalized_site(site: &str) -> Result<String, String> {
@@ -171,11 +212,7 @@ fn connect_jira_blocking(site_url: String, email: String, api_token: String) -> 
   let me = jira_get(&format!("{site}/rest/api/3/myself"), email.trim(), api_token.trim())?;
   let account_id = me["accountId"].as_str().ok_or_else(|| "Jira did not return your account identity.".to_string())?;
   let display_name = me["displayName"].as_str().unwrap_or("Jira user");
-  save_secret("site-url", &site)?;
-  save_secret("email", email.trim())?;
-  save_secret("api-token", api_token.trim())?;
-  save_secret("account-id", account_id)?;
-  save_secret("display-name", display_name)?;
+  save_credentials(&[("site-url", site.as_str()), ("email", email.trim()), ("api-token", api_token.trim()), ("account-id", account_id), ("display-name", display_name)])?;
   Ok(JiraConnection { connected: true, display_name: Some(display_name.to_owned()), site_name: Some(site) })
 }
 
