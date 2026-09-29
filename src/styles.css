@@ -151,3 +151,12 @@ button { cursor: pointer; }
 .worklog-detail .delete-buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 .danger-button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:5px;background:#c2472f;color:#fff;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer}.danger-button:hover{background:#a93c27}.danger-button:disabled{opacity:.8;cursor:progress}
 .issue-lock-note{margin:6px 0 0;color:#5d6e85;font-size:12px}
+/* ---------- Period bar (Today · ‹ › · title) ---------- */
+.period-bar{gap:12px}
+.period-bar>.today-button{width:auto;height:32px;margin:0;padding:0 13px;border:1px solid #cbd8e5;border-radius:6px;background:transparent;color:inherit;font-size:12px;font-weight:700}
+.period-bar>.today-button:hover{background:#e5edf5;border-color:#b6c7d8}.dark .period-bar>.today-button{border-color:#34404e}.dark .period-bar>.today-button:hover{background:#151c25;border-color:#46586c}
+.period-bar .period-nav{display:inline-flex;margin:0;border:1px solid #cbd8e5;border-radius:6px;overflow:hidden;font-size:inherit}.dark .period-bar .period-nav{border-color:#34404e}
+.period-nav button{display:grid;place-items:center;width:32px;height:30px;border:0;background:transparent;color:inherit;cursor:pointer}.period-nav button+button{border-left:1px solid #cbd8e5}.dark .period-nav button+button{border-left-color:#34404e}
+.period-nav button:hover{background:#e5edf5}.dark .period-nav button:hover{background:#151c25}.period-nav button:focus-visible{outline-offset:-2px}
+.period-bar .period-label{min-width:0;padding:0 0 0 2px}.period-bar .period-label strong,.period-bar .period-button{font:800 16px/1.2 Manrope,sans-serif;letter-spacing:-.02em}.period-bar .period-label>span{margin-top:1px}
+.dark .day-meter{background:#1a232d}
