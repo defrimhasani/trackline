@@ -68,6 +68,9 @@ jobs:
           perl -0pi -e 's/(\[package\]\nname = "trackline"\nversion = ")[^"]+/${1}$ENV{VERSION}/' src-tauri/Cargo.toml
           perl -0pi -e 's/(name = "trackline"\nversion = ")[^"]+/${1}$ENV{VERSION}/' src-tauri/Cargo.lock
           grep -q "^version = \"$VERSION\"" src-tauri/Cargo.toml || { echo "::error::Could not update src-tauri/Cargo.toml"; exit 1; }
+          if [ -f CHANGELOG.md ] && grep -q '^## Unreleased' CHANGELOG.md; then
+            perl -pi -e 's/^## Unreleased\s*$/## v$ENV{VERSION} — '"$(date -u +%Y-%m-%d)"'\n/' CHANGELOG.md
+          fi
           git diff --stat
 
       - name: Commit the version bump
@@ -90,6 +93,9 @@ jobs:
     outputs:
       release_id: ${{ steps.create-release.outputs.result }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
       - name: Create draft release
         id: create-release
         uses: actions/github-script@v7
@@ -98,13 +104,25 @@ jobs:
           SHA: ${{ needs.version.outputs.sha }}
         with:
           script: |
+            const fs = require('fs');
             const tag = `v${process.env.VERSION}`;
-            const { data: commits } = await github.rest.repos.listCommits({ owner: context.repo.owner, repo: context.repo.repo, sha: process.env.SHA, per_page: 30 });
-            const changes = commits
-              .map(commit => commit.commit.message.split('\n')[0])
-              .filter(message => !message.startsWith('chore(release)'))
-              .slice(0, 15)
-              .map(message => `- ${message}`);
+            let notes = '';
+            if (fs.existsSync('CHANGELOG.md')) {
+              const lines = fs.readFileSync('CHANGELOG.md', 'utf8').split('\n');
+              const start = lines.findIndex(line => line.trim() === `## ${tag}` || line.startsWith(`## ${tag} `));
+              if (start >= 0) {
+                const end = lines.findIndex((line, index) => index > start && line.startsWith('## '));
+                notes = lines.slice(start + 1, end === -1 ? undefined : end).join('\n').trim().replace(/^### /gm, '## ');
+              }
+            }
+            if (!notes) {
+              const { data: commits } = await github.rest.repos.listCommits({ owner: context.repo.owner, repo: context.repo.repo, sha: process.env.SHA, per_page: 30 });
+              notes = ['## Recent changes', ...commits
+                .map(commit => commit.commit.message.split('\n')[0])
+                .filter(message => !message.startsWith('chore(release)'))
+                .slice(0, 15)
+                .map(message => `- ${message}`)].join('\n');
+            }
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -116,8 +134,7 @@ jobs:
               body: [
                 'A calm desktop timesheet for Jira Cloud.',
                 '',
-                '## Recent changes',
-                ...changes,
+                notes,
                 '',
                 '## Downloads',
                 '- **macOS (Apple Silicon):** `Trackline_*_aarch64.dmg`',

@@ -8,11 +8,12 @@ Trackline is a free, open-source desktop app built with [Tauri](https://tauri.ap
 
 ## Features
 
-- **Week and month calendar** of your Jira worklogs, with overlapping entries laid out side by side.
+- **Week and month calendar** of your Jira worklogs, with overlapping entries laid out side by side and a month picker to jump anywhere.
 - **Log time fast.** Click an hour in the calendar, pick an issue from *Recent activity*, *Recently viewed*, or search all of Jira, and save. Worklogs are written straight to Jira.
 - **Focus on incomplete days.** Highlight working days below your daily target (8h by default, configurable) and log the missing time in one click.
 - **Team worklogs.** A people × days grid for chosen Jira projects plus pinned teammates, with per-day details and the same incomplete-day focus.
-- **CSV export.** Your own worklogs, or a team summary plus every individual worklog line.
+- **Tickets view.** Switch the team view to one row per ticket: issue type, status, Work type, Cost/Capitalized, estimate, hours logged in the period, total against estimate, and who logged time. A summary bar splits hours into Capitalized and Cost, and by work type. The two custom fields are detected by name and can be changed in *Settings → Jira fields*.
+- **CSV export.** Your own worklogs, or a team summary, every individual worklog line, and per-ticket totals.
 - **Daily reminder.** A native notification on weekdays if you are below target at your chosen time.
 - **Light and dark themes,** hide-weekends toggle, and a resizable desktop window.
 
@@ -91,7 +92,8 @@ Trackline is an independent project and is not affiliated with or endorsed by At
 
 Every merge to `main` that changes the app (`src/`, `src-tauri/`, npm packages or build config) publishes a new release automatically:
 
-1. The **Release** workflow bumps the patch version (for example `0.1.1` → `0.1.2`) in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, and commits it back to `main`.
-2. It builds macOS (Apple Silicon and Intel), Windows and Linux installers and publishes them as a GitHub Release.
+1. Describe user-facing changes under **## Unreleased** in [`CHANGELOG.md`](CHANGELOG.md) as part of your change.
+2. The **Release** workflow bumps the patch version (for example `0.1.1` → `0.1.2`) in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, renames *Unreleased* to the new version, and commits it back to `main`.
+3. It builds macOS (Apple Silicon and Intel), Windows and Linux installers and publishes them as a GitHub Release, using that changelog section as the release notes.
 
 Put `[minor]` or `[major]` in the merge commit message for a bigger version step, or `[skip release]` to skip releasing. You can also run the workflow manually from the Actions tab and choose the bump.

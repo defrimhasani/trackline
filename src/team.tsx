@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { invoke } from '@tauri-apps/api/core';
 import { FolderKanban, Pin, Plus, RefreshCw, Search, UserRound, X } from 'lucide-react';
 import { formatHours, hoursNumber, isWeekend, localDate, readableError, weekdayLabels } from './utils';
+import { TicketTable, buildTicketRows, ticketExportFile, type TeamIssue } from './tickets';
 
 export type TeamProject = { key: string; name: string; avatarUrl?: string };
 export type TeamPerson = { accountId: string; displayName: string; avatarUrl?: string };
@@ -21,36 +22,38 @@ export function useTeamScope() {
   return [scope, setScope] as const;
 }
 
-export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean) {
-  const cache = useRef(new Map<string, TeamWorklog[]>());
+export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean, fields: { workTypeField?: string; costField?: string } = {}) {
+  const cache = useRef(new Map<string, { worklogs: TeamWorklog[]; issues: TeamIssue[] }>());
   const [worklogs, setWorklogs] = useState<TeamWorklog[]>([]);
+  const [issues, setIssues] = useState<TeamIssue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const projectKeys = scope.projects.map(project => project.key);
   const accountIds = scope.people.map(person => person.accountId);
-  const scopeKey = `${projectKeys.join(',')}|${accountIds.join(',')}`;
+  const scopeKey = `${projectKeys.join(',')}|${accountIds.join(',')}|${fields.workTypeField ?? ''}|${fields.costField ?? ''}`;
 
   useEffect(() => {
     if (!enabled) return;
     const cacheKey = `${scopeKey}|${range.start}|${range.end}`;
     const cached = cache.current.get(cacheKey);
-    if (cached) { setWorklogs(cached); setIsLoading(false); setError(''); return; }
-    if (!projectKeys.length && !accountIds.length) { setWorklogs([]); setIsLoading(false); setError(''); return; }
+    if (cached) { setWorklogs(cached.worklogs); setIssues(cached.issues); setIsLoading(false); setError(''); return; }
+    if (!projectKeys.length && !accountIds.length) { setWorklogs([]); setIssues([]); setIsLoading(false); setError(''); return; }
     let isCurrent = true;
-    setIsLoading(true); setError(''); setWorklogs([]);
-    invoke<TeamWorklog[]>('get_team_worklogs', {
+    setIsLoading(true); setError(''); setWorklogs([]); setIssues([]);
+    invoke<{ worklogs: TeamWorklog[]; issues: TeamIssue[] }>('get_team_worklogs', {
       projectKeys, accountIds, startDate: range.start, endDate: range.end,
       startedAfter: new Date(`${range.start}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${range.end}T00:00:00`).getTime() + 86_400_000,
+      workTypeField: fields.workTypeField ?? null, costField: fields.costField ?? null,
     })
-      .then(result => { cache.current.set(cacheKey, result); if (isCurrent) setWorklogs(result); })
+      .then(result => { cache.current.set(cacheKey, result); if (isCurrent) { setWorklogs(result.worklogs); setIssues(result.issues); } })
       .catch(reason => { if (isCurrent) setError(readableError(reason)); })
       .finally(() => { if (isCurrent) setIsLoading(false); });
     return () => { isCurrent = false; };
   }, [enabled, scopeKey, range.start, range.end, reloadKey]);
 
   const refresh = () => { cache.current.clear(); setReloadKey(key => key + 1); };
-  return { worklogs, isLoading, error, refresh };
+  return { worklogs, issues, isLoading, error, refresh };
 }
 
 export function buildTeamRows(worklogs: TeamWorklog[], people: TeamPerson[]): TeamRow[] {
@@ -79,7 +82,7 @@ export const missingHours = (hours: number, date: Date, todayValue: string, work
   return missing > 0.01 ? missing : 0;
 };
 
-export function teamExportFiles(rows: TeamRow[], worklogs: TeamWorklog[], dates: Date[], stamp: string) {
+export function teamExportFiles(rows: TeamRow[], worklogs: TeamWorklog[], dates: Date[], stamp: string, issues: TeamIssue[] = []) {
   const values = dates.map(localDate);
   const summary: (string | number)[][] = [
     ['Person', ...values, 'Total'],
@@ -91,10 +94,10 @@ export function teamExportFiles(rows: TeamRow[], worklogs: TeamWorklog[], dates:
     ...[...worklogs].sort((a, b) => a.date.localeCompare(b.date) || a.authorName.localeCompare(b.authorName) || a.startedAt.localeCompare(b.startedAt))
       .map(log => [log.date, log.startedAt.slice(11, 16), log.authorName, log.issue, log.summary, hoursNumber(log.durationMinutes / 60), log.description]),
   ];
-  return [{ name: `trackline-team-summary-${stamp}`, rows: summary }, { name: `trackline-team-worklogs-${stamp}`, rows: details }];
+  return [{ name: `trackline-team-summary-${stamp}`, rows: summary }, { name: `trackline-team-worklogs-${stamp}`, rows: details }, ticketExportFile(buildTicketRows(issues, worklogs), stamp)];
 }
 
-function Avatar({ name, url, size = 24 }: { name: string; url?: string; size?: number }) {
+export function Avatar({ name, url, size = 24 }: { name: string; url?: string; size?: number }) {
   const [hasFailed, setHasFailed] = useState(false);
   const initials = name.split(/[\s.]+/).filter(Boolean).slice(0, 2).map(part => part[0]!.toUpperCase()).join('');
   const style = { width: size, height: size, fontSize: Math.round(size * 0.38) };
@@ -153,11 +156,16 @@ type TeamWorklogsProps = {
   workdayHours: number; todayValue: string;
   focusIncomplete: boolean; onFocusChange: (value: boolean) => void;
   hideWeekends: boolean; onHideWeekendsChange: (value: boolean) => void;
+  issues: TeamIssue[]; fieldsMissing: { workType: boolean; cost: boolean };
 };
 
 export function TeamWorklogs(props: TeamWorklogsProps) {
   const { scope, setScope, rows, isLoading, error, onRefresh, periodDays, periodLabel, calendarMode, workdayHours, todayValue, focusIncomplete, hideWeekends } = props;
   const [detail, setDetail] = useState<{ row: TeamRow; date: Date } | null>(null);
+  const [groupBy, setGroupBy] = useState<'people' | 'tickets'>(() => localStorage.getItem('trackline.team.groupBy') === 'tickets' ? 'tickets' : 'people');
+  useEffect(() => { localStorage.setItem('trackline.team.groupBy', groupBy); }, [groupBy]);
+  const ticketRows = useMemo(() => buildTicketRows(props.issues, props.worklogs), [props.issues, props.worklogs]);
+  const isTickets = groupBy === 'tickets';
   const hasScope = scope.projects.length > 0 || scope.people.length > 0;
   const showFocus = focusIncomplete && !isLoading && !error && hasScope;
   const missingFor = (row: TeamRow, date: Date) => missingHours(row.hoursByDate.get(localDate(date)) ?? 0, date, todayValue, workdayHours);
@@ -176,6 +184,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
   const summaryText = !hasScope ? 'Choose Jira projects or pin people to build your team view.'
     : isLoading ? 'Loading team worklogs…'
     : error ? error
+    : isTickets ? `${ticketRows.length} ${ticketRows.length === 1 ? 'ticket' : 'tickets'} · ${formatHours(grandTotal)} logged in ${periodLabel}`
     : `${rows.length} ${rows.length === 1 ? 'person' : 'people'} · ${formatHours(grandTotal)} logged in ${periodLabel}${showFocus ? ` · ${incompleteCount} incomplete ${incompleteCount === 1 ? 'day' : 'days'}` : ''}`;
 
   const detailHours = detail ? detail.row.hoursByDate.get(localDate(detail.date)) ?? 0 : 0;
@@ -186,10 +195,14 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
     <div className="calendar-heading">
       <div><h1 id="team-title">Team worklogs</h1><p>{summaryText}</p></div>
       <div className="calendar-controls">
-        <div className="calendar-options">
+        <div className="view-tabs" aria-label="Group worklogs by">
+          <button className={!isTickets ? 'selected' : ''} aria-pressed={!isTickets} onClick={() => setGroupBy('people')}>People</button>
+          <button className={isTickets ? 'selected' : ''} aria-pressed={isTickets} onClick={() => setGroupBy('tickets')}>Tickets</button>
+        </div>
+        {!isTickets && <div className="calendar-options">
           <label className="calendar-option"><button type="button" role="switch" aria-checked={focusIncomplete} className={`toggle${focusIncomplete ? ' on' : ''}`} onClick={() => props.onFocusChange(!focusIncomplete)}><i /></button>Focus on incomplete days{showFocus && <b aria-label={`${incompleteCount} incomplete days`}>{incompleteCount}</b>}</label>
           <label className="calendar-option"><button type="button" role="switch" aria-checked={hideWeekends} className={`toggle${hideWeekends ? ' on' : ''}`} onClick={() => props.onHideWeekendsChange(!hideWeekends)}><i /></button>Hide weekends</label>
-        </div>
+        </div>}
         <div className="view-tabs">
           <button className={calendarMode === 'week' ? 'selected' : ''} aria-pressed={calendarMode === 'week'} onClick={() => props.onModeChange('week')}>Week</button>
           <button className={calendarMode === 'month' ? 'selected' : ''} aria-pressed={calendarMode === 'month'} onClick={() => props.onModeChange('month')}>Month</button>
@@ -220,6 +233,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
     {!hasScope ? <div className="team-empty"><UserRound size={22} aria-hidden="true" /><strong>Build your team view</strong><span>Add a Jira project to see everyone who logs time on it, or pin people so they always appear, even on days they log nothing.</span></div>
       : error ? <div className="team-empty"><strong>Team worklogs could not load</strong><span>{error}</span><button type="button" onClick={onRefresh}>Try again</button></div>
       : !isLoading && !rows.length ? <div className="team-empty"><strong>No worklogs in {periodLabel}</strong><span>Nobody in this scope logged time for this {calendarMode}. Try another {calendarMode}, or pin people to track their missing days.</span></div>
+      : isTickets ? <TicketTable rows={ticketRows} isLoading={isLoading} periodLabel={periodLabel} fieldsMissing={props.fieldsMissing} />
       : <div className="team-grid-wrap" style={{ '--day-count': periodDays.length } as CSSProperties}>
         <table className={`team-grid${calendarMode === 'month' ? ' is-dense' : ''}`}>
           <thead><tr>
@@ -251,7 +265,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
         </table>
         {isLoading && <div className="calendar-loading"><span />Loading team worklogs</div>}
       </div>}
-    {hideWeekends && !isLoading && rows.some(row => [...row.hoursByDate.keys()].some(value => isWeekend(new Date(`${value}T12:00:00`)))) && <p className="team-note">Weekend hours are hidden from the grid but included in totals.</p>}
+    {!isTickets && hideWeekends && !isLoading && rows.some(row => [...row.hoursByDate.keys()].some(value => isWeekend(new Date(`${value}T12:00:00`)))) && <p className="team-note">Weekend hours are hidden from the grid but included in totals.</p>}
 
     {detail && <div className="popover-backdrop" onClick={() => setDetail(null)}>
       <section className="team-detail" role="dialog" aria-modal="true" aria-labelledby="team-detail-title" onClick={event => event.stopPropagation()}>

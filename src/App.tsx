@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import { TeamWorklogs, buildTeamRows, teamExportFiles, useTeamScope, useTeamWorklogs } from './team';
+import { useTicketFields } from './tickets';
+import { MonthPicker } from './month-picker';
 import { addDays, daysBetween, formatHours, localDate, readableError, toCsv, weekdayLabels } from './utils';
 import {
   Bell, BellRing, Bookmark, Bug, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, CircleHelp, Clock3,
@@ -70,7 +72,8 @@ const siteHost = (site?: string) => { try { return site ? new URL(site).host : '
 
 export default function App() {
   const [logs, setLogs] = useState<Worklog[]>([]);
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => localStorage.getItem('trackline.theme') !== 'light');
+  useEffect(() => { localStorage.setItem('trackline.theme', isDark ? 'dark' : 'light'); }, [isDark]);
   const [view, setView] = useState<'calendar' | 'settings' | 'worklogs'>('calendar');
   const [reminderEnabled, setReminderEnabled] = useState(() => localStorage.getItem('trackline.reminderEnabled') !== 'false');
   const [reminderTime, setReminderTime] = useState(() => localStorage.getItem('trackline.reminderTime') ?? '16:00');
@@ -215,7 +218,8 @@ export default function App() {
   const teamRange = calendarMode === 'week'
     ? { start: localDate(weekStart), end: localDate(addDays(weekStart, 7)) }
     : { start: localDate(monthStart), end: localDate(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1)) };
-  const team = useTeamWorklogs(teamScope, teamRange, view === 'worklogs' || modal === 'export');
+  const ticketFields = useTicketFields(syncState === 'ready');
+  const team = useTeamWorklogs(teamScope, teamRange, (view === 'worklogs' || modal === 'export') && ticketFields.isReady, ticketFields.config);
   const teamRows = useMemo(() => buildTeamRows(team.worklogs, teamScope.people), [team.worklogs, teamScope.people]);
   const teamDates = daysBetween(teamRange.start, teamRange.end);
   const teamPeriodDays = hideWeekends ? teamDates.filter(date => date.getDay() % 6 !== 0) : teamDates;
@@ -355,7 +359,7 @@ export default function App() {
   const exportCalendar = async () => {
     const stamp = `${teamRange.start}_${localDate(addDays(new Date(`${teamRange.end}T12:00:00`), -1))}`;
     const files = exportScope === 'Team worklogs'
-      ? teamExportFiles(teamRows, team.worklogs, teamDates, stamp)
+      ? teamExportFiles(teamRows, team.worklogs, teamDates, stamp, team.issues)
       : [{ name: `trackline-my-worklogs-${stamp}`, rows: [['Date', 'Start', 'Issue', 'Summary', 'Hours', 'Description'], ...periodLogs.filter(log => log.date >= teamRange.start && log.date < teamRange.end).sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start).map(log => [log.date, `${String(Math.floor(log.start)).padStart(2, '0')}:${String(Math.round((log.start % 1) * 60)).padStart(2, '0')}`, log.issue, log.title, Number(log.duration.toFixed(2)), log.description])] }];
     setIsExporting(true); setExportError('');
     try {
@@ -386,7 +390,7 @@ export default function App() {
         <button className="back-link" onClick={() => setView('calendar')}><ChevronLeft size={18} />Calendar</button>
         <span className="settings-note"><Check size={14} />Changes apply immediately</span>
       </header> : <header className="topbar">
-          <div className="week-switcher"><button onClick={() => movePeriod(-1)} aria-label={`Previous ${calendarMode}`}><ChevronLeft size={19} /></button><div><strong>{periodLabel}</strong><span aria-live="polite">{(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? 'Syncing Jira worklogs…' : view === 'worklogs' ? 'Team worklogs' : 'Jira worklog calendar'}</span></div><button onClick={() => movePeriod(1)} aria-label={`Next ${calendarMode}`}><ChevronRight size={19} /></button><button className="today-button" onClick={() => setFocusDate(new Date())}>Today</button></div>
+          <div className="week-switcher"><button onClick={() => movePeriod(-1)} aria-label={`Previous ${calendarMode}`}><ChevronLeft size={19} /></button><div>{calendarMode === 'month' ? <MonthPicker value={monthStart} label={periodLabel} onChange={setFocusDate} /> : <strong>{periodLabel}</strong>}<span aria-live="polite">{(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? 'Syncing Jira worklogs…' : view === 'worklogs' ? 'Team worklogs' : 'Jira worklog calendar'}</span></div><button onClick={() => movePeriod(1)} aria-label={`Next ${calendarMode}`}><ChevronRight size={19} /></button><button className="today-button" onClick={() => setFocusDate(new Date())}>Today</button></div>
         <div className="top-actions"><button className="icon-button" aria-label="Search"><Search size={19} /></button><button className="icon-button theme-toggle" onClick={() => setIsDark(value => !value)} aria-label="Toggle color theme">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button><button className="export-button" onClick={openExport}><Download size={17} />Export</button><button className="primary-button" onClick={() => openLogDialog()}><Plus size={18} />Log time</button></div>
       </header>}
 
@@ -428,6 +432,20 @@ export default function App() {
                </div>
              </div>
            </section>
+           <section className="settings-section" aria-labelledby="settings-fields">
+             <div className="settings-intro"><ListTree size={18} aria-hidden="true" /><div><h2 id="settings-fields">Jira fields</h2><p>Custom fields shown in the Tickets view and export. Trackline picks them by name; change them if your site uses different fields.</p></div></div>
+             <div className="setting-control">
+               {syncState !== 'ready' ? <p className="setting-hint">Connect Jira to choose fields.</p> : ticketFields.error ? <p className="setting-hint">{ticketFields.error}</p> : <div className="field-pickers">
+                 {([['workTypeField', 'Work type', 'jira-field-work-type'], ['costField', 'Cost/Capitalized', 'jira-field-cost']] as const).map(([key, label, id]) => <div className="field" key={key}>
+                   <label className="field-label" htmlFor={id}>{label}</label>
+                   <select id={id} className="field-select" value={ticketFields.config[key] ?? ''} onChange={event => ticketFields.setConfig(current => ({ ...current, detected: true, [key]: event.target.value || undefined }))}>
+                     <option value="">Not used</option>
+                     {ticketFields.options.map(field => <option key={field.id} value={field.id}>{field.name}</option>)}
+                   </select>
+                 </div>)}
+               </div>}
+             </div>
+           </section>
            <section className="settings-section" aria-labelledby="settings-reminder">
              <div className="settings-intro"><BellRing size={18} aria-hidden="true" /><div><h2 id="settings-reminder">Daily reminder</h2><p>Receive an in-app prompt to finish logging time before your workday ends.</p></div></div>
              <div className="setting-control">
@@ -449,7 +467,8 @@ export default function App() {
          </div>
        </section> : view === 'worklogs' ? <TeamWorklogs scope={teamScope} setScope={setTeamScope} worklogs={team.worklogs} rows={teamRows} isLoading={team.isLoading} error={team.error} onRefresh={team.refresh}
         periodDays={teamPeriodDays} periodLabel={periodLabel} calendarMode={calendarMode} onModeChange={setCalendarMode} workdayHours={workdayHours} todayValue={todayValue}
-        focusIncomplete={focusIncomplete} onFocusChange={setFocusIncomplete} hideWeekends={hideWeekends} onHideWeekendsChange={setHideWeekends} /> : <div className="content">
+        focusIncomplete={focusIncomplete} onFocusChange={setFocusIncomplete} hideWeekends={hideWeekends} onHideWeekendsChange={setHideWeekends}
+        issues={team.issues} fieldsMissing={{ workType: !ticketFields.config.workTypeField, cost: !ticketFields.config.costField }} /> : <div className="content">
         <section className="calendar-panel" aria-labelledby="calendar-title">
              <div className="calendar-heading"><div><h1 id="calendar-title">{calendarMode === 'week' ? 'Your workweek' : 'Your month'}</h1><p>{isCalendarLoading ? 'Loading your Jira worklogs…' : syncState === 'error' ? syncError : periodTotal ? `${formatHours(periodTotal)} logged${calendarMode === 'month' ? ` across ${loggedDays} ${loggedDays === 1 ? 'day' : 'days'}` : ''} · ${formatHours(Math.max(0, periodTarget - periodTotal))} remaining` : `No Jira time logged for this ${calendarMode}.`}</p></div><div className="calendar-controls"><div className="calendar-options"><label className="calendar-option"><button type="button" role="switch" aria-checked={focusIncomplete} className={`toggle${focusIncomplete ? ' on' : ''}`} onClick={() => setFocusIncomplete(value => !value)}><i /></button>Focus on incomplete days{showFocus && <b aria-label={`${incompleteCount} incomplete ${incompleteCount === 1 ? 'day' : 'days'}`}>{incompleteCount}</b>}</label><label className="calendar-option"><button type="button" role="switch" aria-checked={hideWeekends} className={`toggle${hideWeekends ? ' on' : ''}`} onClick={() => setHideWeekends(value => !value)}><i /></button>Hide weekends</label></div><div className="view-tabs"><button className={calendarMode === 'week' ? 'selected' : ''} aria-pressed={calendarMode === 'week'} onClick={() => setCalendarMode('week')}>Week</button><button className={calendarMode === 'month' ? 'selected' : ''} aria-pressed={calendarMode === 'month'} onClick={() => setCalendarMode('month')}>Month</button></div></div></div>
           <div className="dispatch-legend"><span><i className="route-dot teal" />Logged</span><span><i className="route-dot blue" />Review / meeting</span><span><i className="route-dot coral" />Needs attention</span><button onClick={() => showToast('Issue filters are ready for your Jira data.')}><CircleHelp size={15} />How totals work</button></div>
@@ -524,7 +543,7 @@ export default function App() {
     </div>}{issueError && <p className="issue-error" role="alert">{issueError}</p>}</div><div className="input-row log-timing"><label>Duration (hours)<input type="number" min="0.25" step="0.25" value={entry.duration} onChange={event => setEntry({ ...entry, duration: event.target.value })} required /></label><label>Day<select value={entry.date} onChange={event => setEntry({ ...entry, date: event.target.value, time: nextStartTime(event.target.value) })}>{Array.from({ length: hideWeekends ? 5 : 7 }, (_, index) => addDays(startOfWeek(new Date(`${entry.date}T12:00:00`)), index)).map(date => <option value={localDate(date)} key={localDate(date)}>{weekdayLabels[(date.getDay() + 6) % 7]} {String(date.getDate()).padStart(2, '0')}</option>)}</select></label><label>Start time<input type="time" value={entry.time} onChange={event => setEntry({ ...entry, time: event.target.value })} required /></label></div><label>Work description<textarea value={entry.description} onChange={event => setEntry({ ...entry, description: event.target.value })} placeholder="What did you work on?" /></label>{saveLogError && <p className="save-error" role="alert">{saveLogError}</p>}<footer><button type="button" className="cancel" onClick={() => setModal(null)}>Cancel</button><button className="primary-button" type="submit" disabled={isSavingLog}>{isSavingLog ? <span className="mini-spinner inline" aria-hidden="true" /> : <Check size={17} />}{isSavingLog ? 'Saving to Jira…' : 'Save worklog'}</button></footer></form></div>}
     {modal === 'export' && <div className="modal-backdrop"><section className="dialog export-dialog"><button className="close" onClick={() => setModal(null)} aria-label="Close"><X size={18} /></button><span className="dialog-label">EXPORT</span><h2>Download logged time</h2><p>CSV files for {periodLabel} are saved to your Downloads folder.</p><div className="scope-options">{[
       { id: 'My calendar', tag: 'ME', text: `Your worklogs for this ${calendarMode}`, disabled: false },
-      { id: 'Team worklogs', tag: 'TEAM', text: hasTeamScope ? `${teamScopeText} · per-day summary and every worklog (2 files)` : 'Choose projects or people on the Worklogs page first', disabled: !hasTeamScope },
+      { id: 'Team worklogs', tag: 'TEAM', text: hasTeamScope ? `${teamScopeText} · per-day summary, every worklog, and per-ticket totals (3 files)` : 'Choose projects or people on the Worklogs page first', disabled: !hasTeamScope },
     ].map(option => <button className={exportScope === option.id ? 'scope-selected' : ''} disabled={option.disabled} onClick={() => setExportScope(option.id)} key={option.id}><span>{option.tag}</span><div><strong>{option.id}</strong><small>{option.text}</small></div><i>{exportScope === option.id && <Check size={15} />}</i></button>)}</div>{exportScope === 'Team worklogs' && team.error && <p className="save-error" role="alert">{team.error}</p>}{exportError && <p className="save-error" role="alert">{exportError}</p>}<footer><button className="cancel" onClick={() => setModal(null)}>Cancel</button><button className="primary-button" onClick={exportCalendar} disabled={isExporting || (exportScope === 'Team worklogs' && (team.isLoading || !!team.error))}>{isExporting || (exportScope === 'Team worklogs' && team.isLoading) ? <span className="mini-spinner inline" aria-hidden="true" /> : <Download size={17} />}{exportScope === 'Team worklogs' && team.isLoading ? 'Loading team worklogs…' : isExporting ? 'Saving…' : 'Download CSV'}</button></footer></section></div>}
     {toast && <div className="toast"><Check size={17} />{toast}</div>}
   </main>;

@@ -249,7 +249,7 @@
                   <p class="b-dcopy">CSV files for Mar 9 — Mar 13 are saved to your Downloads folder.</p>
                   <div class="b-scopes">
                     <div class="b-scope-opt"><span class="tag">ME</span><div><strong>My calendar</strong><small>Your worklogs for this week</small></div><i></i></div>
-                    <div class="b-scope-opt sel"><span class="tag">TEAM</span><div><strong>Team worklogs</strong><small>APP, WEB, Maya Chen, Tomás Ilves · per-day summary and every worklog (2 files)</small></div><i><svg class="ic"><use href="#i-check"/></svg></i></div>
+                    <div class="b-scope-opt sel"><span class="tag">TEAM</span><div><strong>Team worklogs</strong><small>APP, WEB, Maya Chen, Tomás Ilves · per-day summary, every worklog and per-ticket totals (3 files)</small></div><i><svg class="ic"><use href="#i-check"/></svg></i></div>
                   </div>
                   <div class="b-dfoot"><span class="b-cancel">Cancel</span><span class="b-primary b-save"><svg class="ic"><use href="#i-download"/></svg>Download CSV</span></div>
                 </div>
@@ -286,16 +286,18 @@
           <p class="step-note">Your target is your workday length: 8 hours unless you change it.</p>
         </section>
         <section class="step" data-step="4" aria-labelledby="s4">
-          <h2 id="s4"><span class="station" aria-hidden="true"></span>Your team’s week, one grid.</h2>
+          <h2 id="s4"><span class="station" aria-hidden="true"></span>Your team’s week, by person or by ticket.</h2>
           <p>Choose Jira projects and pin teammates to see people by days. Pinned people appear even when they logged nothing, which is usually the point. Click any cell to read that person’s worklogs for the day, with the same incomplete-day focus.</p>
+          <p>Switch to <strong>Tickets</strong> for one row per ticket: work type, cost or capitalized, the estimate against time logged, and who logged it. A bar above the table splits the hours into capitalized and cost.</p>
           <p class="step-note hover-only">Try a cell on the replica.</p>
         </section>
         <section class="step" data-step="5" aria-labelledby="s5">
           <h2 id="s5"><span class="station" aria-hidden="true"></span>A CSV when someone asks for one.</h2>
-          <p>Export your own worklogs, or a team summary plus every worklog line as two files. They’re saved to your Downloads folder, named for the period.</p>
+          <p>Export your own worklogs, or a team summary, every worklog line and per-ticket totals as three files. They’re saved to your Downloads folder, named for the period.</p>
           <ul class="files" aria-label="Example file names">
             <li>trackline-team-summary-2026-03-09_2026-03-15.csv</li>
             <li>trackline-team-worklogs-2026-03-09_2026-03-15.csv</li>
+            <li>trackline-team-tickets-2026-03-09_2026-03-15.csv</li>
           </ul>
         </section>
       </div>
@@ -343,13 +345,13 @@
     <section class="details" aria-labelledby="details-title">
       <h2 id="details-title">Small things, done properly.</h2>
       <dl class="timetable">
-        <div><dt>Week and month</dt><dd>A timetable of your week, or a month grid with daily totals and the issues behind them.</dd></div>
+        <div><dt>Week and month</dt><dd>A timetable of your week, or a month grid with daily totals and the issues behind them. Click the month name to jump to any month.</dd></div>
         <div><dt>Overlaps side by side</dt><dd>Two worklogs in the same hour share the slot instead of stacking on top of each other.</dd></div>
         <div><dt>A timeline that stretches</dt><dd>An early start or a late finish widens the hours shown, so nothing falls off the edge.</dd></div>
         <div><dt>Hide weekends</dt><dd>On by default. Turn it off if Saturday work is part of your week.</dd></div>
         <div><dt>Your workday length</dt><dd>Eight hours unless you say otherwise. Every target and missing-time badge follows it.</dd></div>
         <div><dt>Issue-type icons</dt><dd>The same icons Jira uses, so a bug in the picker looks like a bug.</dd></div>
-        <div><dt>Light and dark</dt><dd>Two themes for the room you work in. The moon on the replica above switches it.</dd></div>
+        <div><dt>Light and dark</dt><dd>Two themes for the room you work in, and Trackline remembers your choice. The moon on the replica above switches it.</dd></div>
         <div><dt>A resizable window</dt><dd>A native desktop window you can size and place around the rest of your work.</dd></div>
       </dl>
     </section>

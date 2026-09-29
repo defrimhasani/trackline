@@ -279,22 +279,92 @@ fn team_worklogs_for_issue(site: &str, email: &str, token: &str, key: &str, summ
   }).collect())
 }
 
-fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64) -> Result<Vec<TeamWorklog>, String> {
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeamIssue {
+  key: String, summary: String, project: String, issue_type: Option<String>, issue_type_icon: Option<String>,
+  status: Option<String>, status_category: Option<String>, parent_key: Option<String>, parent_summary: Option<String>,
+  original_estimate_seconds: Option<u64>, time_spent_seconds: Option<u64>, work_type: Option<String>, cost_type: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TeamData { worklogs: Vec<TeamWorklog>, issues: Vec<TeamIssue> }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct JiraField { id: String, name: String, field_type: String }
+
+fn is_custom_field(value: &str) -> bool { value.strip_prefix("customfield_").is_some_and(|number| !number.is_empty() && number.chars().all(|c| c.is_ascii_digit())) }
+
+fn field_text(value: &Value) -> Option<String> {
+  match value {
+    Value::Null => None,
+    Value::String(text) => Some(text.clone()).filter(|text| !text.is_empty()),
+    Value::Number(number) => Some(number.to_string()),
+    Value::Array(items) => { let parts: Vec<String> = items.iter().filter_map(field_text).collect(); (!parts.is_empty()).then(|| parts.join(", ")) }
+    Value::Object(_) => value["value"].as_str().or(value["name"].as_str()).or(value["displayName"].as_str()).map(str::to_owned),
+    Value::Bool(flag) => Some(if *flag { "Yes" } else { "No" }.to_owned()),
+  }
+}
+
+#[tauri::command]
+async fn list_custom_fields() -> Result<Vec<JiraField>, String> {
+  in_background(|| {
+    let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
+    let fields = jira_get(&format!("{site}/rest/api/3/field"), &email, &token)?;
+    let mut custom: Vec<JiraField> = fields.as_array().into_iter().flatten()
+      .filter(|field| field["custom"].as_bool().unwrap_or(false))
+      .map(|field| JiraField {
+        id: field["id"].as_str().unwrap_or_default().to_owned(),
+        name: field["name"].as_str().unwrap_or_default().to_owned(),
+        field_type: field["schema"]["type"].as_str().unwrap_or("unknown").to_owned(),
+      }).collect();
+    custom.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(custom)
+  }).await
+}
+
+#[allow(clippy::too_many_arguments)]
+fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, work_type_field: Option<String>, cost_field: Option<String>) -> Result<TeamData, String> {
   if project_keys.iter().any(|key| !is_project_key(key)) || account_ids.iter().any(|id| !is_account_id(id)) { return Err("The team scope contains an invalid project or person.".to_string()); }
-  if project_keys.is_empty() && account_ids.is_empty() { return Ok(Vec::new()); }
+  let work_type_field = work_type_field.filter(|id| is_custom_field(id));
+  let cost_field = cost_field.filter(|id| is_custom_field(id));
+  if project_keys.is_empty() && account_ids.is_empty() { return Ok(TeamData { worklogs: Vec::new(), issues: Vec::new() }); }
   let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
   let mut scope = Vec::new();
   if !project_keys.is_empty() { scope.push(format!("project in ({})", project_keys.join(", "))); }
   if !account_ids.is_empty() { scope.push(format!("worklogAuthor in ({})", account_ids.iter().map(|id| format!("\"{id}\"")).collect::<Vec<_>>().join(", "))); }
   let jql = encode(&format!("({}) AND worklogDate >= \"{start_date}\" AND worklogDate < \"{end_date}\"", scope.join(" OR ")));
+  let mut requested_fields = vec!["summary", "project", "issuetype", "status", "parent", "timeoriginalestimate", "timespent"];
+  if let Some(id) = &work_type_field { requested_fields.push(id); }
+  if let Some(id) = &cost_field { requested_fields.push(id); }
+  let requested_fields = requested_fields.join(",");
   let mut issues: Vec<(String, String, bool)> = Vec::new();
+  let mut details: Vec<TeamIssue> = Vec::new();
   let mut page_token: Option<String> = None;
   loop {
     let page_query = page_token.as_deref().map(|value| format!("&nextPageToken={}", encode(value))).unwrap_or_default();
-    let page = jira_get(&format!("{site}/rest/api/3/search/jql?jql={jql}&fields=summary,project&maxResults=100{page_query}"), &email, &token)?;
+    let page = jira_get(&format!("{site}/rest/api/3/search/jql?jql={jql}&fields={requested_fields}&maxResults=100{page_query}"), &email, &token)?;
     for issue in page["issues"].as_array().into_iter().flatten() {
-      let project = issue["fields"]["project"]["key"].as_str().unwrap_or_default();
-      issues.push((issue["key"].as_str().unwrap_or_default().to_owned(), issue["fields"]["summary"].as_str().unwrap_or("Untitled Jira work").to_owned(), project_keys.iter().any(|key| key == project)));
+      let fields = &issue["fields"];
+      let key = issue["key"].as_str().unwrap_or_default().to_owned();
+      let summary = fields["summary"].as_str().unwrap_or("Untitled Jira work").to_owned();
+      let project = fields["project"]["key"].as_str().unwrap_or_default().to_owned();
+      issues.push((key.clone(), summary.clone(), project_keys.iter().any(|item| *item == project)));
+      details.push(TeamIssue {
+        key, summary, project,
+        issue_type: fields["issuetype"]["name"].as_str().map(str::to_owned),
+        issue_type_icon: fields["issuetype"]["iconUrl"].as_str().map(str::to_owned),
+        status: fields["status"]["name"].as_str().map(str::to_owned),
+        status_category: fields["status"]["statusCategory"]["key"].as_str().map(str::to_owned),
+        parent_key: fields["parent"]["key"].as_str().map(str::to_owned),
+        parent_summary: fields["parent"]["fields"]["summary"].as_str().map(str::to_owned),
+        original_estimate_seconds: fields["timeoriginalestimate"].as_u64(),
+        time_spent_seconds: fields["timespent"].as_u64(),
+        work_type: work_type_field.as_ref().and_then(|id| field_text(&fields[id.as_str()])),
+        cost_type: cost_field.as_ref().and_then(|id| field_text(&fields[id.as_str()])),
+      });
     }
     page_token = page["nextPageToken"].as_str().map(str::to_owned);
     if page["isLast"].as_bool().unwrap_or(true) || page_token.is_none() || issues.len() >= 2000 { break; }
@@ -308,12 +378,14 @@ fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start
     for handle in handles { worklogs.extend(handle.join().map_err(|_| "Trackline could not load team worklogs.".to_string())??); }
   }
   worklogs.sort_by(|a, b| a.started_at.cmp(&b.started_at));
-  Ok(worklogs)
+  details.retain(|issue| worklogs.iter().any(|log| log.issue == issue.key));
+  Ok(TeamData { worklogs, issues: details })
 }
 
 #[tauri::command]
-async fn get_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64) -> Result<Vec<TeamWorklog>, String> {
-  in_background(move || load_team_worklogs(project_keys, account_ids, start_date, end_date, started_after, started_before)).await
+#[allow(clippy::too_many_arguments)]
+async fn get_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, work_type_field: Option<String>, cost_field: Option<String>) -> Result<TeamData, String> {
+  in_background(move || load_team_worklogs(project_keys, account_ids, start_date, end_date, started_after, started_before, work_type_field, cost_field)).await
 }
 
 #[tauri::command]
@@ -353,4 +425,4 @@ async fn open_issue(issue_key: String) -> Result<(), String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() { tauri::Builder::default().plugin(tauri_plugin_notification::init()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, search_projects, search_users, get_team_worklogs, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
+pub fn run() { tauri::Builder::default().plugin(tauri_plugin_notification::init()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, search_projects, search_users, get_team_worklogs, list_custom_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
