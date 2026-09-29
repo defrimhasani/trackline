@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.2.0 — 2026-09-29
 
 ### New
 - **Tickets view.** The Worklogs page now switches between **People** and **Tickets**. Each ticket shows its issue type, status and parent, **Work type**, **Cost/Capitalized**, original estimate, hours logged in the selected week or month, total logged against the estimate (with over-estimate highlighted), and everyone who logged time on it.
