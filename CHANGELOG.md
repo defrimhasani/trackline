@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.4.3 — 2026-09-30
 
 ### Security
 - Trackline now refuses to send your Jira credentials anywhere except over HTTPS, even if the saved site address were changed.
