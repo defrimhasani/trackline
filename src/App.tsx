@@ -5,7 +5,7 @@ import { TeamWorklogs, buildTeamRows, teamExportFiles, useTeamScope, useTeamWork
 import { useTicketFields } from './tickets';
 import { MonthPicker } from './month-picker';
 import { UpdateBanner, UpdateSettings, useAppUpdates } from './updates';
-import { addDays, daysBetween, formatHours, localDate, readableError, toCsv, weekdayLabels } from './utils';
+import { addDays, daysBetween, formatDuration, formatHours, localDate, parseDuration, readableError, toCsv, weekdayLabels } from './utils';
 import {
   Bell, BellRing, Bookmark, Bug, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, CircleHelp, Clock3,
   Download, ExternalLink, FileSpreadsheet, LayoutDashboard, ListTree, Moon, Pencil, Plus, Trash,
@@ -112,7 +112,8 @@ export default function App() {
   const [saveLogError, setSaveLogError] = useState('');
   const [selected, setSelected] = useState<Worklog | null>(null);
   const [toast, setToast] = useState('');
-  const [entry, setEntry] = useState({ issue: '', duration: '1', date: localDate(new Date()), time: '09:00', description: '' });
+  const [entry, setEntry] = useState({ issue: '', duration: '1h', date: localDate(new Date()), time: '09:00', description: '', repeat: false, until: '', repeatDays: [1, 2, 3, 4, 5] });
+  const [saveProgress, setSaveProgress] = useState('');
   const [exportScope, setExportScope] = useState('My calendar');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState('');
@@ -121,6 +122,7 @@ export default function App() {
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
   const rangeCache = useRef<CachedRange[]>([]);
   const [calendarReload, setCalendarReload] = useState(0);
+  const [calendarSyncedAt, setCalendarSyncedAt] = useState<Date | null>(null);
   const shownRange = useRef('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [jiraAccount, setJiraAccount] = useState<JiraConnection | null>(null);
@@ -166,7 +168,7 @@ export default function App() {
         });
         rangeCache.current.push({ start, end, logs: rangeLogs });
         if (!isCurrentRange) return;
-        setLogs(rangeLogs); setSyncState('ready'); setIsCalendarLoading(false);
+        setLogs(rangeLogs); setSyncState('ready'); setIsCalendarLoading(false); setCalendarSyncedAt(new Date());
       })
       .catch(error => { if (!isCurrentRange) return; setSyncError(readableError(error)); setSyncState('error'); setIsCalendarLoading(false); });
     return () => { isCurrentRange = false; };
@@ -307,14 +309,14 @@ export default function App() {
   const openLogDialog = (preset?: { date: string; time: string }) => {
     const date = preset?.date ?? (days.some(day => day.value === todayValue) ? todayValue : days[0].value);
     setEditingLog(null);
-    setEntry(current => ({ ...current, issue: '', description: '', date, time: preset?.time ?? nextStartTime(date) }));
+    setEntry(current => ({ ...current, issue: '', description: '', date, time: preset?.time ?? nextStartTime(date), repeat: false, until: '' }));
     setSelectedIssue(null); setIssueQuery(''); setIssueError(''); setSaveLogError(''); setActiveOption(0); setModal('log');
   };
   const timeLabel = (start: number) => { const minutes = Math.round(start * 60); return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`; };
   const openEditDialog = (log: Worklog) => {
     const known = [...(issueLists.recent ?? []), ...(issueLists.viewed ?? [])].find(issue => issue.key === log.issue);
     setEditingLog(log);
-    setEntry({ issue: log.issue, duration: String(Number(log.duration.toFixed(2))), date: log.date, time: timeLabel(log.start), description: log.description });
+    setEntry(current => ({ ...current, issue: log.issue, duration: formatDuration(Math.round(log.duration * 60)), date: log.date, time: timeLabel(log.start), description: log.description, repeat: false, until: '' }));
     setSelectedIssue(known ?? { key: log.issue, summary: log.title });
     setIssueQuery(''); setIssueError(''); setSaveLogError(''); setSelected(null); setModal('log');
   };
@@ -381,29 +383,66 @@ export default function App() {
   const renderIssueOption = (issue: JiraIssue, index: number) => <div role="option" id={`issue-option-${issue.key}`} aria-selected={index === activeOption} className={`issue-option${index === activeOption ? ' active' : ''}`} key={issue.key} onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActiveOption(index)} onClick={() => chooseIssue(issue)}><IssueTypeIcon issue={issue} /><b>{issue.key}</b><span>{issue.summary}</span><small>{[issue.status, relativeTime(issue.updated)].filter(Boolean).join(' · ')}</small></div>;
 
   const showToast = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3200); };
+  const entryMinutes = parseDuration(entry.duration, workdayHours);
+  const isDurationInvalid = !!entry.duration.trim() && entryMinutes === null;
+  const repeatDates = entry.repeat && entry.until >= entry.date
+    ? daysBetween(entry.date, localDate(addDays(new Date(`${entry.until}T12:00:00`), 1))).filter(date => entry.repeatDays.includes(date.getDay()))
+    : [];
+  const repeatProblem = !entry.repeat ? ''
+    : !entry.until || entry.until < entry.date ? 'Choose an end date on or after the start date.'
+    : !repeatDates.length ? 'No days match. Pick at least one weekday inside the range.'
+    : repeatDates.length > 100 ? `That would create ${repeatDates.length} worklogs. Choose a shorter range (up to 100).`
+    : '';
+  const toggleRepeat = () => setEntry(current => {
+    if (current.repeat) return { ...current, repeat: false };
+    const friday = localDate(addDays(startOfWeek(new Date(`${current.date}T12:00:00`)), 4));
+    return { ...current, repeat: true, until: current.until && current.until >= current.date ? current.until : friday >= current.date ? friday : current.date };
+  });
+  const durationPresets = [...new Set(['15m', '30m', '1h', '2h', '4h', formatDuration(Math.round(workdayHours * 60))])];
+  const jiraStarted = (date: string, time: string) => {
+    const offsetMinutes = -new Date(`${date}T${time}:00`).getTimezoneOffset();
+    const offset = `${offsetMinutes >= 0 ? '+' : '-'}${String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, '0')}${String(Math.abs(offsetMinutes) % 60).padStart(2, '0')}`;
+    return `${date}T${time}:00.000${offset}`;
+  };
   const addLog = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedIssue) { setIssueError('Choose the Jira issue this time belongs to.'); return; }
-    const durationMinutes = Math.round(Number(entry.duration) * 60);
-    if (!durationMinutes || durationMinutes <= 0) { setSaveLogError('Enter how long you worked, for example 1.5 hours.'); return; }
-    const local = new Date(`${entry.date}T${entry.time}:00`);
-    const offsetMinutes = -local.getTimezoneOffset();
-    const offset = `${offsetMinutes >= 0 ? '+' : '-'}${String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, '0')}${String(Math.abs(offsetMinutes) % 60).padStart(2, '0')}`;
+    const durationMinutes = parseDuration(entry.duration, workdayHours);
+    if (!durationMinutes) { setSaveLogError('Enter how long you worked, for example 30m, 1h 30m or 1.5 (hours).'); return; }
+    const isRepeating = entry.repeat && !editingLog;
+    if (isRepeating && repeatProblem) { setSaveLogError(repeatProblem); return; }
+    const dates = isRepeating ? repeatDates.map(localDate) : [entry.date];
     const { key, summary } = selectedIssue;
-    const started = `${entry.date}T${entry.time}:00.000${offset}`;
     const description = entry.description.trim();
-    setIsSavingLog(true); setSaveLogError('');
+    const [hour, minute] = entry.time.split(':').map(Number);
+    const toWorklog = (id: number, date: string): Worklog => ({ id, date, issue: key, title: summary, duration: durationMinutes / 60, start: hour + minute / 60, accent: accentFor(key), description });
+    setIsSavingLog(true); setSaveLogError(''); setSaveProgress('');
     try {
-      if (editingLog) await invoke('update_worklog', { issueKey: key, worklogId: String(editingLog.id), started, durationMinutes, description, clearComment: !description && !!editingLog.description });
-      const id = editingLog ? editingLog.id : Number(await invoke<string>('add_worklog', { issueKey: key, started, durationMinutes, description }));
-      const [hour, minute] = entry.time.split(':').map(Number);
-      const nextLog: Worklog = { id, date: entry.date, issue: key, title: summary, duration: durationMinutes / 60, start: hour + minute / 60, accent: accentFor(key), description };
-      applyWorklogChange(editingLog?.id ?? null, nextLog);
+      if (editingLog) {
+        await invoke('update_worklog', { issueKey: key, worklogId: String(editingLog.id), started: jiraStarted(entry.date, entry.time), durationMinutes, description, clearComment: !description && !!editingLog.description });
+        applyWorklogChange(editingLog.id, toWorklog(editingLog.id, entry.date));
+        setModal(null); setEditingLog(null);
+        showToast(`Updated the worklog on ${key} in Jira`);
+        return;
+      }
+      let created = 0;
+      for (const date of dates) {
+        if (dates.length > 1) setSaveProgress(`Saving ${created + 1} of ${dates.length}…`);
+        try {
+          const id = Number(await invoke<string>('add_worklog', { issueKey: key, started: jiraStarted(date, entry.time), durationMinutes, description }));
+          applyWorklogChange(null, toWorklog(id, date));
+          created += 1;
+        } catch (error) {
+          if (!created) throw error;
+          setEntry(current => ({ ...current, date }));
+          setSaveLogError(`Saved ${created} of ${dates.length} worklogs, then Jira stopped: ${readableError(error)} Select Save again to continue from ${new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.`);
+          return;
+        }
+      }
       setModal(null);
-      showToast(editingLog ? `Updated the worklog on ${key} in Jira` : `Logged ${formatHours(nextLog.duration)} to ${key} in Jira`);
-      setEditingLog(null);
+      showToast(dates.length > 1 ? `Logged ${dates.length} worklogs (${formatDuration(dates.length * durationMinutes)}) to ${key} in Jira` : `Logged ${formatDuration(durationMinutes)} to ${key} in Jira`);
     } catch (error) { setSaveLogError(readableError(error)); }
-    finally { setIsSavingLog(false); }
+    finally { setIsSavingLog(false); setSaveProgress(''); }
   };
   const exportCalendar = async () => {
     const stamp = `${teamRange.start}_${localDate(addDays(new Date(`${teamRange.end}T12:00:00`), -1))}`;
@@ -440,7 +479,7 @@ export default function App() {
         <button className="back-link" onClick={() => setView('calendar')}><ChevronLeft size={18} />Calendar</button>
         <span className="settings-note"><Check size={14} />Changes apply immediately</span>
       </header> : <header className="topbar">
-          <div className="week-switcher period-bar"><button className="today-button" onClick={() => setFocusDate(new Date())}>Today</button><span className="period-nav"><button onClick={() => movePeriod(-1)} aria-label={`Previous ${calendarMode}`} title={`Previous ${calendarMode}`}><ChevronLeft size={17} /></button><button onClick={() => movePeriod(1)} aria-label={`Next ${calendarMode}`} title={`Next ${calendarMode}`}><ChevronRight size={17} /></button></span><div className="period-label">{calendarMode === 'month' ? <MonthPicker value={monthStart} label={periodLabel} onChange={setFocusDate} /> : <strong>{periodLabel}</strong>}<span aria-live="polite">{(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? 'Syncing Jira worklogs…' : view === 'worklogs' ? 'Team worklogs' : 'Jira worklog calendar'}</span></div></div>
+          <div className="week-switcher period-bar"><button className="today-button" onClick={() => setFocusDate(new Date())}>Today</button><span className="period-nav"><button onClick={() => movePeriod(-1)} aria-label={`Previous ${calendarMode}`} title={`Previous ${calendarMode}`}><ChevronLeft size={17} /></button><button onClick={() => movePeriod(1)} aria-label={`Next ${calendarMode}`} title={`Next ${calendarMode}`}><ChevronRight size={17} /></button></span><div className="period-label">{calendarMode === 'month' ? <MonthPicker value={monthStart} label={periodLabel} onChange={setFocusDate} /> : <strong>{periodLabel}</strong>}<span aria-live="polite">{(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? 'Syncing Jira worklogs…' : `${view === 'worklogs' ? 'Team worklogs' : 'Jira worklog calendar'}${(view === 'worklogs' ? team.syncedAt : calendarSyncedAt) ? ` · synced ${(view === 'worklogs' ? team.syncedAt : calendarSyncedAt)!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`}</span></div></div>
         <div className="top-actions"><button className={`icon-button refresh-button${(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? ' is-spinning' : ''}`} onClick={refreshData} disabled={view === 'worklogs' ? team.isLoading : isCalendarLoading} aria-label="Refresh from Jira" title="Refresh from Jira (⌘R)"><RefreshCw size={18} /></button><button className="icon-button theme-toggle" onClick={() => setIsDark(value => !value)} aria-label="Toggle color theme">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button><button className="export-button" onClick={openExport}><Download size={17} />Export</button><button className="primary-button" onClick={() => openLogDialog()}><Plus size={18} />Log time</button></div>
       </header>}
 
@@ -597,7 +636,17 @@ export default function App() {
         {issueOptions.remote.map((issue, index) => renderIssueOption(issue, issueOptions.local.length + index))}
         {hasIssueList && !flatIssueOptions.length && <p className="issue-status">{issueQuery.trim().length >= 2 ? (isSearching ? 'Searching Jira…' : 'No matching issues. Try a different word or the full issue key.') : issueQuery.trim() ? 'No matches in this list. Keep typing to search all of Jira.' : 'No issues in this list yet.'}</p>}
       </div>
-    </div>}{issueError && <p className="issue-error" role="alert">{issueError}</p>}{editingLog && <p className="issue-lock-note">To move this time to another issue, delete this worklog and log it again.</p>}</div><div className="input-row log-timing"><label>Duration (hours)<input type="number" min="0.25" step="0.25" value={entry.duration} onChange={event => setEntry({ ...entry, duration: event.target.value })} required /></label><label>Day<select value={entry.date} onChange={event => setEntry({ ...entry, date: event.target.value, time: nextStartTime(event.target.value) })}>{Array.from({ length: hideWeekends ? 5 : 7 }, (_, index) => addDays(startOfWeek(new Date(`${entry.date}T12:00:00`)), index)).map(date => <option value={localDate(date)} key={localDate(date)}>{weekdayLabels[(date.getDay() + 6) % 7]} {String(date.getDate()).padStart(2, '0')}</option>)}</select></label><label>Start time<input type="time" value={entry.time} onChange={event => setEntry({ ...entry, time: event.target.value })} required /></label></div><label>Work description<textarea value={entry.description} onChange={event => setEntry({ ...entry, description: event.target.value })} placeholder="What did you work on?" /></label>{saveLogError && <p className="save-error" role="alert">{saveLogError}</p>}<footer><button type="button" className="cancel" onClick={() => setModal(null)}>Cancel</button><button className="primary-button" type="submit" disabled={isSavingLog}>{isSavingLog ? <span className="mini-spinner inline" aria-hidden="true" /> : <Check size={17} />}{isSavingLog ? 'Saving to Jira…' : editingLog ? 'Save changes' : 'Save worklog'}</button></footer></form></div>}
+    </div>}{issueError && <p className="issue-error" role="alert">{issueError}</p>}{editingLog && <p className="issue-lock-note">To move this time to another issue, delete this worklog and log it again.</p>}</div><div className="input-row log-timing"><label>Duration<input type="text" inputMode="text" autoComplete="off" value={entry.duration} onChange={event => setEntry({ ...entry, duration: event.target.value })} placeholder="30m, 1h 30m or 1.5" aria-invalid={isDurationInvalid} aria-describedby="duration-hint" required /></label>{entry.repeat && !editingLog ? <label>From<input type="date" value={entry.date} onChange={event => event.target.value && setEntry({ ...entry, date: event.target.value, time: nextStartTime(event.target.value) })} required /></label> : <label>Day<select value={entry.date} onChange={event => setEntry({ ...entry, date: event.target.value, time: nextStartTime(event.target.value) })}>{Array.from({ length: hideWeekends ? 5 : 7 }, (_, index) => addDays(startOfWeek(new Date(`${entry.date}T12:00:00`)), index)).map(date => <option value={localDate(date)} key={localDate(date)}>{weekdayLabels[(date.getDay() + 6) % 7]} {String(date.getDate()).padStart(2, '0')}</option>)}</select></label>}<label>Start time<input type="time" value={entry.time} onChange={event => setEntry({ ...entry, time: event.target.value })} required /></label></div>
+      <div className="duration-row"><div className="duration-chips" role="group" aria-label="Common durations">{durationPresets.map(preset => <button type="button" key={preset} className={entryMinutes === parseDuration(preset, workdayHours) ? 'selected' : ''} aria-pressed={entryMinutes === parseDuration(preset, workdayHours)} onClick={() => setEntry({ ...entry, duration: preset })}>{preset}</button>)}</div><small id="duration-hint" className={isDurationInvalid ? 'invalid' : ''}>{isDurationInvalid ? 'Use minutes (30m), hours (2h), both (1h 30m) or hours as a number (1.5).' : entryMinutes ? `= ${formatDuration(entryMinutes)}` : ''}</small></div>
+      {!editingLog && <div className={`repeat-block${entry.repeat ? ' is-open' : ''}`}>
+        <label className="repeat-toggle"><button type="button" role="switch" aria-checked={entry.repeat} className={`toggle${entry.repeat ? ' on' : ''}`} onClick={toggleRepeat}><i /></button>Repeat on several days</label>
+        {entry.repeat && <div className="repeat-options">
+          <label>Until<input type="date" min={entry.date} value={entry.until} onChange={event => setEntry({ ...entry, until: event.target.value })} required /></label>
+          <div className="repeat-days-field"><span className="field-label" id="repeat-days-label">On</span><div className="repeat-days" role="group" aria-labelledby="repeat-days-label">{[[1, 'M', 'Monday'], [2, 'T', 'Tuesday'], [3, 'W', 'Wednesday'], [4, 'T', 'Thursday'], [5, 'F', 'Friday'], [6, 'S', 'Saturday'], [0, 'S', 'Sunday']].map(([day, short, name]) => { const isOn = entry.repeatDays.includes(day as number); return <button type="button" key={day} className={isOn ? 'selected' : ''} aria-pressed={isOn} aria-label={name as string} title={name as string} onClick={() => setEntry(current => ({ ...current, repeatDays: isOn ? current.repeatDays.filter(value => value !== day) : [...current.repeatDays, day as number] }))}>{short}</button>; })}</div></div>
+          <p className={`repeat-summary${repeatProblem ? ' invalid' : ''}`} aria-live="polite">{repeatProblem || `Creates ${repeatDates.length} ${repeatDates.length === 1 ? 'worklog' : 'worklogs'}${entryMinutes ? ` · ${formatDuration(repeatDates.length * entryMinutes)} in total` : ''} · ${repeatDates[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${repeatDates.length > 1 ? ` – ${repeatDates[repeatDates.length - 1].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`}</p>
+        </div>}
+      </div>}
+      <label>Work description<textarea value={entry.description} onChange={event => setEntry({ ...entry, description: event.target.value })} placeholder="What did you work on?" /></label>{saveLogError && <p className="save-error" role="alert">{saveLogError}</p>}<footer><button type="button" className="cancel" onClick={() => setModal(null)}>Cancel</button><button className="primary-button" type="submit" disabled={isSavingLog}>{isSavingLog ? <span className="mini-spinner inline" aria-hidden="true" /> : <Check size={17} />}{isSavingLog ? (saveProgress || 'Saving to Jira…') : editingLog ? 'Save changes' : entry.repeat && repeatDates.length > 1 && !repeatProblem ? `Save ${repeatDates.length} worklogs` : 'Save worklog'}</button></footer></form></div>}
     {modal === 'export' && <div className="modal-backdrop"><section className="dialog export-dialog"><button className="close" onClick={() => setModal(null)} aria-label="Close"><X size={18} /></button><span className="dialog-label">EXPORT</span><h2>Download logged time</h2><p>CSV files for {periodLabel} are saved to your Downloads folder.</p><div className="scope-options">{[
       { id: 'My calendar', tag: 'ME', text: `Your worklogs for this ${calendarMode}`, disabled: false },
       { id: 'Team worklogs', tag: 'TEAM', text: hasTeamScope ? `${teamScopeText} · per-day summary, every worklog, and per-ticket totals (3 files)` : 'Choose projects or people on the Worklogs page first', disabled: !hasTeamScope },

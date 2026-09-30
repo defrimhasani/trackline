@@ -160,3 +160,15 @@ button { cursor: pointer; }
 .period-nav button:hover{background:#e5edf5}.dark .period-nav button:hover{background:#151c25}.period-nav button:focus-visible{outline-offset:-2px}
 .period-bar .period-label{min-width:0;padding:0 0 0 2px}.period-bar .period-label strong,.period-bar .period-button{font:800 16px/1.2 Manrope,sans-serif;letter-spacing:-.02em}.period-bar .period-label>span{margin-top:1px}
 .dark .day-meter{background:#1a232d}
+/* ---------- Log time: durations and repeat ---------- */
+.duration-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:8px}.duration-chips{display:flex;flex-wrap:wrap;gap:4px}
+.duration-chips button{border:1px solid #d5e0e9;border-radius:4px;background:#fff;color:#2d4260;padding:3px 8px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer}.duration-chips button:hover{border-color:#88cfc7}.duration-chips button.selected{border-color:#24a99d;background:#effaf8;color:#127a70}
+.duration-row small{color:#5d6e85;font-size:11px;font-weight:600}.duration-row small.invalid{color:#a34a38}.dialog input[aria-invalid="true"]{border-color:#e39a86}
+.repeat-block{margin-top:16px;padding-top:14px;border-top:1px solid #e3eaf1}
+.dialog .repeat-toggle{display:inline-flex;align-items:center;gap:9px;margin:0;font-size:12px;font-weight:700;cursor:pointer}.repeat-toggle .toggle{margin-left:0}
+.repeat-options{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;align-items:end;margin-top:4px}.repeat-options>label{margin-top:10px}
+.repeat-days-field{display:grid;gap:6px}.repeat-days-field .field-label{margin:0}.repeat-days{display:flex;gap:3px}
+.repeat-days button{width:30px;height:36px;border:1px solid #ccd9e6;border-radius:5px;background:#fff;color:#5d6e85;font-size:12px;font-weight:700;cursor:pointer}.repeat-days button:hover{border-color:#88cfc7}.repeat-days button.selected{border-color:#16a89a;background:#16a89a;color:#fff}
+.repeat-summary{grid-column:1/-1;margin:6px 0 0;color:#127a70;font-size:12px;font-weight:600}.repeat-summary.invalid{color:#a34a38}
+@media (max-width:600px){.repeat-options{grid-template-columns:minmax(0,1fr)}}
+.dialog .field-label,.dark .dialog .field-label{color:#1a2b47}

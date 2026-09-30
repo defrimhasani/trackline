@@ -11,3 +11,26 @@ export const daysBetween = (start: string, end: string) => {
   return dates;
 };
 export const toCsv = (rows: (string | number)[][]) => `\uFEFF${rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n')}`;
+
+/**
+ * Parses a Jira-style duration into minutes: "30m", "2h", "1h 30m", "1h30m", "1.5h", "1:30",
+ * "1d" (one workday) or a plain number of hours ("1.5"). Returns null when the text isn't a duration.
+ */
+export const parseDuration = (input: string, workdayHours = 8): number | null => {
+  const text = input.trim().toLowerCase().replace(/,/g, '.');
+  if (!text) return null;
+  if (/^\d+(\.\d+)?$/.test(text)) return Math.round(Number(text) * 60) || null;
+  const clock = text.match(/^(\d+):([0-5]\d)$/);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]) || null;
+  const units: Record<string, number> = { d: workdayHours * 60, h: 60, m: 1 };
+  let minutes = 0;
+  const rest = text.replace(/(\d+(?:\.\d+)?)\s*(d|h|m)(?![a-z])\s*/g, (_, value: string, unit: string) => { minutes += Number(value) * units[unit]; return ''; });
+  return rest.trim() ? null : Math.round(minutes) || null;
+};
+
+/** Formats minutes the way Jira shows time: "45m", "2h", "1h 30m". */
+export const formatDuration = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  return hours && rest ? `${hours}h ${rest}m` : hours ? `${hours}h` : `${rest}m`;
+};

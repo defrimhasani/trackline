@@ -29,6 +29,7 @@ export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [syncedAt, setSyncedAt] = useState<Date | null>(null);
   const shownKey = useRef('');
   const projectKeys = scope.projects.map(project => project.key);
   const accountIds = scope.people.map(person => person.accountId);
@@ -49,14 +50,14 @@ export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean
       startedAfter: new Date(`${range.start}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${range.end}T00:00:00`).getTime() + 86_400_000,
       workTypeField: fields.workTypeField ?? null, costField: fields.costField ?? null,
     })
-      .then(result => { cache.current.set(cacheKey, result); if (isCurrent) { setWorklogs(result.worklogs); setIssues(result.issues); } })
+      .then(result => { cache.current.set(cacheKey, result); if (isCurrent) { setWorklogs(result.worklogs); setIssues(result.issues); setSyncedAt(new Date()); } })
       .catch(reason => { if (isCurrent) setError(readableError(reason)); })
       .finally(() => { if (isCurrent) setIsLoading(false); });
     return () => { isCurrent = false; };
   }, [enabled, scopeKey, range.start, range.end, reloadKey]);
 
   const refresh = () => { cache.current.clear(); setReloadKey(key => key + 1); };
-  return { worklogs, issues, isLoading, error, refresh };
+  return { worklogs, issues, isLoading, error, refresh, syncedAt };
 }
 
 export function buildTeamRows(worklogs: TeamWorklog[], people: TeamPerson[]): TeamRow[] {

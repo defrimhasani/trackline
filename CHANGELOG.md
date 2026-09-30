@@ -2,6 +2,18 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### New
+- **Recurring worklogs.** In Log time, turn on **Repeat on several days** to log the same issue, duration, start time and description across a date range, on the weekdays you choose (Mon–Fri by default). A preview shows how many worklogs will be created and the total time before you save. Useful for annual leave or a daily scrum. ([#4](https://github.com/defrimhasani/trackline/issues/4), thanks @fitahmeti)
+- **Last sync time.** Under the date, the top bar now shows when the calendar or Worklogs page was last loaded from Jira (for example "synced 10:42"). Use the Refresh button next to the theme toggle, or ⌘R / Ctrl+R, to pick up changes made directly in Jira. ([#5](https://github.com/defrimhasani/trackline/issues/5), thanks @fitahmeti)
+
+### Improved
+- **Durations in minutes.** The duration field accepts Jira-style durations: `15m`, `30m`, `2h`, `1h 30m`, `1:30`, `1d` (one workday), or hours as a number (`1.5`). Quick buttons fill in common durations, and the field shows what it understood, such as "= 1h 30m". ([#3](https://github.com/defrimhasani/trackline/issues/3), thanks @fitahmeti)
+
+### Fixed
+- Field labels in the Log time dialog are readable again in dark mode.
+
 ## v0.4.3 — 2026-09-30
 
 ### Security
