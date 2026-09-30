@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.5.1 — 2026-09-30
 
 ### Improved
 - **Simpler tickets export.** `trackline-team-tickets-….csv` now ends with a single **Total** row summing the hours logged in the period, instead of repeating each ticket's all-time total. The Estimate and all-time Total logged columns are removed, so every number in the file belongs to the exported week or month.
