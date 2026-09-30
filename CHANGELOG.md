@@ -2,6 +2,12 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### Security
+- Trackline now refuses to send your Jira credentials anywhere except over HTTPS, even if the saved site address were changed.
+- The release workflow now has read-only access by default; only the jobs that publish releases can write.
+
 ## v0.4.2 — 2026-09-30
 
 ### Security

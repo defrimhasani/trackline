@@ -93,8 +93,14 @@ fn normalized_site(site: &str) -> Result<String, String> {
 }
 
 fn jira_send(request: reqwest::blocking::RequestBuilder, email: &str, token: &str) -> Result<Value, String> {
+  let (client, request) = request.build_split();
+  let mut request = request.map_err(|_| "Trackline could not prepare the Jira request.".to_string())?;
+  // Credentials are only ever sent over HTTPS, whatever address is stored.
+  if request.url().scheme() != "https" { return Err("Trackline only sends your Jira credentials over HTTPS. Reconnect with an https:// site address in Settings.".to_string()); }
   let credentials = STANDARD.encode(format!("{email}:{token}"));
-  let response = request.header("Authorization", format!("Basic {credentials}")).send()
+  let authorization = reqwest::header::HeaderValue::from_str(&format!("Basic {credentials}")).map_err(|_| "Your Jira credentials contain characters that can't be sent.".to_string())?;
+  request.headers_mut().insert(reqwest::header::AUTHORIZATION, authorization);
+  let response = client.execute(request)
     .map_err(|_| "Trackline could not reach Jira Cloud.".to_string())?;
   let status = response.status();
   if status == reqwest::StatusCode::UNAUTHORIZED { return Err("Jira rejected the site URL, email address, or API token.".to_string()); }
