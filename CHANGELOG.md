@@ -2,6 +2,13 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### Security
+- **Verifiable downloads.** Every installer now has a signed build provenance attestation from GitHub Actions. Check any download with `gh attestation verify <file> -R defrimhasani/trackline`.
+- **Security scanning.** The repository now runs CodeQL code scanning, secret scanning with push protection, Dependabot alerts and updates, dependency review on pull requests, and OpenSSF Scorecard. Vulnerabilities can be reported privately; see `SECURITY.md`.
+- Release and website workflows pin every GitHub Action to an exact commit and only use the permissions they need.
+
 ## v0.4.1 — 2026-09-29
 
 ### Improved

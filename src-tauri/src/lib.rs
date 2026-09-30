@@ -210,6 +210,7 @@ async fn search_issues(query: String) -> Result<Vec<JiraIssue>, String> {
   }).await
 }
 
+#[allow(clippy::too_many_arguments)]
 fn worklogs_for_issue(site: String, email: String, token: String, account_id: String, key: String, summary: String, start_date: String, end_date: String, started_after: i64, started_before: i64) -> Result<Vec<JiraWorklog>, String> {
   let logs = jira_get(&format!("{site}/rest/api/3/issue/{key}/worklog?maxResults=5000&startedAfter={started_after}&startedBefore={started_before}"), &email, &token)?;
   let mut worklogs = Vec::new();
@@ -229,8 +230,8 @@ fn open_api_token_page() -> Result<(), String> {
   Ok(())
 }
 
-fn in_background<T: Send + 'static>(task: impl FnOnce() -> Result<T, String> + Send + 'static) -> impl std::future::Future<Output = Result<T, String>> {
-  async move { tauri::async_runtime::spawn_blocking(task).await.map_err(|_| "Trackline could not finish the Jira request.".to_string())? }
+async fn in_background<T: Send + 'static>(task: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+  tauri::async_runtime::spawn_blocking(task).await.map_err(|_| "Trackline could not finish the Jira request.".to_string())?
 }
 
 #[tauri::command]
@@ -389,7 +390,7 @@ async fn list_custom_fields() -> Result<Vec<JiraField>, String> {
         name: field["name"].as_str().unwrap_or_default().to_owned(),
         field_type: field["schema"]["type"].as_str().unwrap_or("unknown").to_owned(),
       }).collect();
-    custom.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    custom.sort_by_key(|field| field.name.to_lowercase());
     Ok(custom)
   }).await
 }
@@ -420,7 +421,7 @@ fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start
       let key = issue["key"].as_str().unwrap_or_default().to_owned();
       let summary = fields["summary"].as_str().unwrap_or("Untitled Jira work").to_owned();
       let project = fields["project"]["key"].as_str().unwrap_or_default().to_owned();
-      issues.push((key.clone(), summary.clone(), project_keys.iter().any(|item| *item == project)));
+      issues.push((key.clone(), summary.clone(), project_keys.contains(&project)));
       details.push(TeamIssue {
         key, summary, project,
         issue_type: fields["issuetype"]["name"].as_str().map(str::to_owned),

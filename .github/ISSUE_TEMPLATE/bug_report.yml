@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in Trackline doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Security problems** go through [private reporting](https://github.com/defrimhasani/trackline/security/advisories/new), not here. Please don't include API tokens or private Jira data.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Trackline version
+      description: Shown in Settings → Updates.
+      placeholder: e.g. 0.4.1
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system
+      options: [macOS (Apple Silicon), macOS (Intel), Windows, Linux (AppImage), Linux (.deb or .rpm), Built from source]
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or error messages
+      description: Remove or blur anything private first.

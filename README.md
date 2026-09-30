@@ -1,5 +1,10 @@
 # Trackline
 
+[![Latest release](https://img.shields.io/github/v/release/defrimhasani/trackline?label=release)](https://github.com/defrimhasani/trackline/releases/latest)
+[![CI](https://github.com/defrimhasani/trackline/actions/workflows/ci.yml/badge.svg)](https://github.com/defrimhasani/trackline/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/defrimhasani/trackline/badge)](https://scorecard.dev/viewer/?uri=github.com/defrimhasani/trackline)
+[![License: MIT](https://img.shields.io/badge/license-MIT-teal.svg)](LICENSE)
+
 **A calm desktop timesheet for Jira Cloud.** See your week as a calendar, log time in seconds, spot the days you missed, and export clean timesheets for yourself or your team.
 
 Trackline is a free, open-source desktop app built with [Tauri](https://tauri.app) and React. It talks directly to your Jira Cloud site with your own API token. There is no Trackline server, no account, and no tracking.
@@ -73,6 +78,16 @@ Trackline can only see and change what your Jira account can.
 - In development builds (`npm run tauri dev`) credentials are stored in `src-tauri/.trackline-dev.json` with owner-only permissions. This file is git-ignored.
 - All requests go directly from your machine to your Jira Cloud site. CSV exports are saved to your Downloads folder.
 
+### Verify a download
+
+Every installer is built by GitHub Actions from this repository and has a signed build provenance attestation. To check a file you downloaded:
+
+```bash
+gh attestation verify Trackline_0.4.2_aarch64.dmg -R defrimhasani/trackline
+```
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
 ## Project structure
 
 ```
@@ -83,7 +98,7 @@ site/         Marketing website published to GitHub Pages
 
 ## Contributing
 
-Issues and pull requests are welcome. Please keep changes consistent with the design system in [`DESIGN.md`](DESIGN.md) and the product principles in [`PRODUCT.md`](PRODUCT.md).
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Please keep changes consistent with the design system in [`DESIGN.md`](DESIGN.md) and the product principles in [`PRODUCT.md`](PRODUCT.md).
 
 ## License
 
