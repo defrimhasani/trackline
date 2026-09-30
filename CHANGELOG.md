@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.4.2 — 2026-09-30
 
 ### Security
 - **Verifiable downloads.** Every installer now has a signed build provenance attestation from GitHub Actions. Check any download with `gh attestation verify <file> -R defrimhasani/trackline`.
