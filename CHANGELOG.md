@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.5.0 — 2026-09-30
 
 ### New
 - **Recurring worklogs.** In Log time, turn on **Repeat on several days** to log the same issue, duration, start time and description across a date range, on the weekdays you choose (Mon–Fri by default). A preview shows how many worklogs will be created and the total time before you save. Useful for annual leave or a daily scrum. ([#4](https://github.com/defrimhasani/trackline/issues/4), thanks @fitahmeti)
