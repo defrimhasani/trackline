@@ -80,17 +80,18 @@ export const costTone = (value?: string) => {
 };
 
 export function ticketExportFile(rows: TicketRow[], stamp: string) {
+  const sorted = [...rows].sort((a, b) => b.periodHours - a.periodHours);
+  const totalHours = sorted.reduce((sum, row) => sum + row.periodHours, 0);
   return {
     name: `trackline-team-tickets-${stamp}`,
     rows: [
-      ['Ticket', 'Summary', 'Issue type', 'Status', 'Parent', 'Work type', 'Cost/Capitalized', 'Estimate (h)', 'Logged in period (h)', 'Total logged (h)', 'Logged by'],
-      ...[...rows].sort((a, b) => b.periodHours - a.periodHours).map(row => [
+      ['Ticket', 'Summary', 'Issue type', 'Status', 'Parent', 'Work type', 'Cost/Capitalized', 'Logged in period (h)', 'Logged by'],
+      ...sorted.map(row => [
         row.key, row.summary, row.issueType ?? '', row.status ?? '', row.parentKey ?? '', row.workType ?? '', row.costType ?? '',
-        row.originalEstimateSeconds !== undefined ? hoursNumber(row.originalEstimateSeconds / 3600) : '',
         hoursNumber(row.periodHours),
-        row.timeSpentSeconds !== undefined ? hoursNumber(row.timeSpentSeconds / 3600) : '',
         row.people.map(person => `${person.name} (${hoursNumber(person.hours)}h)`).join('; '),
       ]),
+      ['Total', `${sorted.length} ${sorted.length === 1 ? 'ticket' : 'tickets'}`, '', '', '', '', '', hoursNumber(totalHours), ''],
     ] as (string | number)[][],
   };
 }
