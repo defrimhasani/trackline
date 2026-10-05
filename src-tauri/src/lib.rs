@@ -360,7 +360,8 @@ fn team_worklogs_for_issue(site: &str, email: &str, token: &str, key: &str, summ
 struct TeamIssue {
   key: String, summary: String, project: String, issue_type: Option<String>, issue_type_icon: Option<String>,
   status: Option<String>, status_category: Option<String>, parent_key: Option<String>, parent_summary: Option<String>,
-  original_estimate_seconds: Option<u64>, time_spent_seconds: Option<u64>, work_type: Option<String>, cost_type: Option<String>,
+  original_estimate_seconds: Option<u64>, time_spent_seconds: Option<u64>,
+  field_values: BTreeMap<String, String>,
 }
 
 #[derive(Serialize)]
@@ -369,9 +370,16 @@ struct TeamData { worklogs: Vec<TeamWorklog>, issues: Vec<TeamIssue> }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct JiraField { id: String, name: String, field_type: String }
+struct JiraField { id: String, name: String, field_type: String, custom: bool }
 
-fn is_custom_field(value: &str) -> bool { value.strip_prefix("customfield_").is_some_and(|number| !number.is_empty() && number.chars().all(|c| c.is_ascii_digit())) }
+// System fields that are already shown in the Tickets view, or that can't be shown as a single value in a column.
+const HIDDEN_SYSTEM_FIELDS: &[&str] = &[
+  "summary", "issuetype", "status", "parent", "project", "issuekey", "thumbnail", "description", "environment", "attachment", "comment", "worklog",
+  "issuelinks", "subtasks", "watches", "votes", "timetracking", "timeoriginalestimate", "timespent", "timeestimate", "aggregatetimeoriginalestimate",
+  "aggregatetimespent", "aggregatetimeestimate", "progress", "aggregateprogress", "workratio", "lastViewed", "statusCategory", "statuscategorychangedate",
+];
+
+fn is_field_id(value: &str) -> bool { !value.is_empty() && value.len() <= 64 && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') }
 
 fn field_text(value: &Value) -> Option<String> {
   match value {
@@ -385,27 +393,30 @@ fn field_text(value: &Value) -> Option<String> {
 }
 
 #[tauri::command]
-async fn list_custom_fields() -> Result<Vec<JiraField>, String> {
+async fn list_fields() -> Result<Vec<JiraField>, String> {
   in_background(|| {
     let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
     let fields = jira_get(&format!("{site}/rest/api/3/field"), &email, &token)?;
-    let mut custom: Vec<JiraField> = fields.as_array().into_iter().flatten()
-      .filter(|field| field["custom"].as_bool().unwrap_or(false))
+    let mut available: Vec<JiraField> = fields.as_array().into_iter().flatten()
+      .filter(|field| field["navigable"].as_bool().unwrap_or(true))
       .map(|field| JiraField {
         id: field["id"].as_str().unwrap_or_default().to_owned(),
         name: field["name"].as_str().unwrap_or_default().to_owned(),
         field_type: field["schema"]["type"].as_str().unwrap_or("unknown").to_owned(),
-      }).collect();
-    custom.sort_by_key(|field| field.name.to_lowercase());
-    Ok(custom)
+        custom: field["custom"].as_bool().unwrap_or(false),
+      })
+      .filter(|field| is_field_id(&field.id) && !field.name.is_empty() && (field.custom || !HIDDEN_SYSTEM_FIELDS.contains(&field.id.as_str())))
+      .collect();
+    available.sort_by_key(|field| field.name.to_lowercase());
+    Ok(available)
   }).await
 }
 
 #[allow(clippy::too_many_arguments)]
-fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, work_type_field: Option<String>, cost_field: Option<String>) -> Result<TeamData, String> {
+fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, field_ids: Vec<String>) -> Result<TeamData, String> {
   if project_keys.iter().any(|key| !is_project_key(key)) || account_ids.iter().any(|id| !is_account_id(id)) { return Err("The team scope contains an invalid project or person.".to_string()); }
-  let work_type_field = work_type_field.filter(|id| is_custom_field(id));
-  let cost_field = cost_field.filter(|id| is_custom_field(id));
+  let field_ids: Vec<String> = field_ids.into_iter().filter(|id| is_field_id(id))
+    .fold(Vec::new(), |mut list, id| { if !list.contains(&id) && list.len() < 20 { list.push(id); } list });
   if project_keys.is_empty() && account_ids.is_empty() { return Ok(TeamData { worklogs: Vec::new(), issues: Vec::new() }); }
   let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
   let mut scope = Vec::new();
@@ -413,8 +424,7 @@ fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start
   if !account_ids.is_empty() { scope.push(format!("worklogAuthor in ({})", account_ids.iter().map(|id| format!("\"{id}\"")).collect::<Vec<_>>().join(", "))); }
   let jql = encode(&format!("({}) AND worklogDate >= \"{start_date}\" AND worklogDate < \"{end_date}\"", scope.join(" OR ")));
   let mut requested_fields = vec!["summary", "project", "issuetype", "status", "parent", "timeoriginalestimate", "timespent"];
-  if let Some(id) = &work_type_field { requested_fields.push(id); }
-  if let Some(id) = &cost_field { requested_fields.push(id); }
+  requested_fields.extend(field_ids.iter().map(String::as_str));
   let requested_fields = requested_fields.join(",");
   let mut issues: Vec<(String, String, bool)> = Vec::new();
   let mut details: Vec<TeamIssue> = Vec::new();
@@ -438,8 +448,7 @@ fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start
         parent_summary: fields["parent"]["fields"]["summary"].as_str().map(str::to_owned),
         original_estimate_seconds: fields["timeoriginalestimate"].as_u64(),
         time_spent_seconds: fields["timespent"].as_u64(),
-        work_type: work_type_field.as_ref().and_then(|id| field_text(&fields[id.as_str()])),
-        cost_type: cost_field.as_ref().and_then(|id| field_text(&fields[id.as_str()])),
+        field_values: field_ids.iter().filter_map(|id| field_text(&fields[id.as_str()]).map(|text| (id.clone(), text))).collect(),
       });
     }
     page_token = page["nextPageToken"].as_str().map(str::to_owned);
@@ -460,8 +469,8 @@ fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
-async fn get_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, work_type_field: Option<String>, cost_field: Option<String>) -> Result<TeamData, String> {
-  in_background(move || load_team_worklogs(project_keys, account_ids, start_date, end_date, started_after, started_before, work_type_field, cost_field)).await
+async fn get_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, field_ids: Option<Vec<String>>) -> Result<TeamData, String> {
+  in_background(move || load_team_worklogs(project_keys, account_ids, start_date, end_date, started_after, started_before, field_ids.unwrap_or_default())).await
 }
 
 #[tauri::command]
@@ -501,4 +510,4 @@ async fn open_issue(issue_key: String) -> Result<(), String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() { tauri::Builder::default().plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_custom_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
+pub fn run() { tauri::Builder::default().plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }

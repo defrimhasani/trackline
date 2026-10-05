@@ -2,6 +2,14 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### New
+- **Choose your own Jira fields.** Pick any Jira fields in **Settings → Jira fields** by searching for them: built-in ones like Fix versions, Components, Labels or Priority, as well as custom fields, and set their order. Each field becomes a column, filter and hours breakdown in the Tickets view, shows in the ticket details, and is a column in the tickets CSV.
+
+### Changed
+- **No more built-in Work type and Cost/Capitalized fields.** Trackline no longer detects these by name; the Tickets view and export show only the fields you configure. Fields you had already mapped are kept in your list.
+
 ## v0.5.1 — 2026-09-30
 
 ### Improved

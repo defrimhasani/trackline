@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { invoke } from '@tauri-apps/api/core';
 import { FolderKanban, Pin, Plus, Search, UserRound, X } from 'lucide-react';
 import { formatHours, hoursNumber, isWeekend, localDate, readableError, weekdayLabels } from './utils';
-import { TicketTable, buildTicketRows, ticketExportFile, type TeamIssue } from './tickets';
+import { TicketTable, buildTicketRows, ticketExportFile, type TeamIssue, type TicketField } from './tickets';
 
 export type TeamProject = { key: string; name: string; avatarUrl?: string };
 export type TeamPerson = { accountId: string; displayName: string; avatarUrl?: string };
@@ -22,7 +22,7 @@ export function useTeamScope() {
   return [scope, setScope] as const;
 }
 
-export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean, fields: { workTypeField?: string; costField?: string } = {}) {
+export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean, fields: TicketField[] = []) {
   const cache = useRef(new Map<string, { worklogs: TeamWorklog[]; issues: TeamIssue[] }>());
   const [worklogs, setWorklogs] = useState<TeamWorklog[]>([]);
   const [issues, setIssues] = useState<TeamIssue[]>([]);
@@ -33,7 +33,8 @@ export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean
   const shownKey = useRef('');
   const projectKeys = scope.projects.map(project => project.key);
   const accountIds = scope.people.map(person => person.accountId);
-  const scopeKey = `${projectKeys.join(',')}|${accountIds.join(',')}|${fields.workTypeField ?? ''}|${fields.costField ?? ''}`;
+  const fieldIds = fields.map(field => field.id);
+  const scopeKey = `${projectKeys.join(',')}|${accountIds.join(',')}|${fieldIds.join(',')}`;
 
   useEffect(() => {
     if (!enabled) return;
@@ -48,7 +49,7 @@ export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean
     invoke<{ worklogs: TeamWorklog[]; issues: TeamIssue[] }>('get_team_worklogs', {
       projectKeys, accountIds, startDate: range.start, endDate: range.end,
       startedAfter: new Date(`${range.start}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${range.end}T00:00:00`).getTime() + 86_400_000,
-      workTypeField: fields.workTypeField ?? null, costField: fields.costField ?? null,
+      fieldIds,
     })
       .then(result => { cache.current.set(cacheKey, result); if (isCurrent) { setWorklogs(result.worklogs); setIssues(result.issues); setSyncedAt(new Date()); } })
       .catch(reason => { if (isCurrent) setError(readableError(reason)); })
@@ -86,7 +87,7 @@ export const missingHours = (hours: number, date: Date, todayValue: string, work
   return missing > 0.01 ? missing : 0;
 };
 
-export function teamExportFiles(rows: TeamRow[], worklogs: TeamWorklog[], dates: Date[], stamp: string, issues: TeamIssue[] = []) {
+export function teamExportFiles(rows: TeamRow[], worklogs: TeamWorklog[], dates: Date[], stamp: string, issues: TeamIssue[] = [], fields: TicketField[] = []) {
   const values = dates.map(localDate);
   const summary: (string | number)[][] = [
     ['Person', ...values, 'Total'],
@@ -98,7 +99,7 @@ export function teamExportFiles(rows: TeamRow[], worklogs: TeamWorklog[], dates:
     ...[...worklogs].sort((a, b) => a.date.localeCompare(b.date) || a.authorName.localeCompare(b.authorName) || a.startedAt.localeCompare(b.startedAt))
       .map(log => [log.date, log.startedAt.slice(11, 16), log.authorName, log.issue, log.summary, hoursNumber(log.durationMinutes / 60), log.description]),
   ];
-  return [{ name: `trackline-team-summary-${stamp}`, rows: summary }, { name: `trackline-team-worklogs-${stamp}`, rows: details }, ticketExportFile(buildTicketRows(issues, worklogs), stamp)];
+  return [{ name: `trackline-team-summary-${stamp}`, rows: summary }, { name: `trackline-team-worklogs-${stamp}`, rows: details }, ticketExportFile(buildTicketRows(issues, worklogs), stamp, fields)];
 }
 
 export function Avatar({ name, url, size = 24 }: { name: string; url?: string; size?: number }) {
@@ -160,7 +161,7 @@ type TeamWorklogsProps = {
   workdayHours: number; todayValue: string;
   focusIncomplete: boolean; onFocusChange: (value: boolean) => void;
   hideWeekends: boolean; onHideWeekendsChange: (value: boolean) => void;
-  issues: TeamIssue[]; fieldsMissing: { workType: boolean; cost: boolean };
+  issues: TeamIssue[]; fields: TicketField[];
 };
 
 export function TeamWorklogs(props: TeamWorklogsProps) {
@@ -236,7 +237,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
     {!hasScope ? <div className="team-empty"><UserRound size={22} aria-hidden="true" /><strong>Build your team view</strong><span>Add a Jira project to see everyone who logs time on it, or pin people so they always appear, even on days they log nothing.</span></div>
       : error ? <div className="team-empty"><strong>Team worklogs could not load</strong><span>{error}</span><button type="button" onClick={onRefresh}>Try again</button></div>
       : !isLoading && !rows.length ? <div className="team-empty"><strong>No worklogs in {periodLabel}</strong><span>Nobody in this scope logged time for this {calendarMode}. Try another {calendarMode}, or pin people to track their missing days.</span></div>
-      : isTickets ? <TicketTable rows={ticketRows} isLoading={isLoading} periodLabel={periodLabel} fieldsMissing={props.fieldsMissing} />
+      : isTickets ? <TicketTable rows={ticketRows} isLoading={isLoading} periodLabel={periodLabel} fields={props.fields} />
       : <div className="team-grid-wrap" style={{ '--day-count': periodDays.length } as CSSProperties}>
         <table className={`team-grid${calendarMode === 'month' ? ' is-dense' : ''}`}>
           <thead><tr>

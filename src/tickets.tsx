@@ -1,58 +1,52 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowDown, ArrowUp, ExternalLink, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ExternalLink, Plus, Search, X } from 'lucide-react';
 import { Avatar, type TeamWorklog } from './team';
 import { formatHours, hoursNumber, readableError } from './utils';
 
 export type TeamIssue = {
   key: string; summary: string; project: string; issueType?: string; issueTypeIcon?: string;
   status?: string; statusCategory?: string; parentKey?: string; parentSummary?: string;
-  originalEstimateSeconds?: number; timeSpentSeconds?: number; workType?: string; costType?: string;
+  originalEstimateSeconds?: number; timeSpentSeconds?: number; fieldValues?: Record<string, string>;
 };
-export type JiraField = { id: string; name: string; fieldType: string };
-export type TicketFieldConfig = { detected: boolean; workTypeField?: string; costField?: string };
+export type JiraField = { id: string; name: string; fieldType: string; custom: boolean };
+export type TicketField = { id: string; name: string };
 type TicketPerson = { accountId: string; name: string; avatarUrl?: string; hours: number };
 export type TicketRow = TeamIssue & { periodHours: number; people: TicketPerson[]; logs: TeamWorklog[] };
-type SortKey = 'ticket' | 'workType' | 'cost' | 'estimate' | 'period' | 'total';
+type SortKey = 'ticket' | 'estimate' | 'period' | 'total' | `field:${string}`;
+const maxTicketFields = 20;
 
 const storageKey = 'trackline.ticketFields';
 const notSet = 'Not set';
 const hoursOf = (seconds?: number) => seconds === undefined || seconds === null ? undefined : seconds / 3600;
+const fieldValue = (row: TeamIssue, field: TicketField) => row.fieldValues?.[field.id];
 
-const pickField = (fields: JiraField[], patterns: RegExp[]) => {
-  for (const pattern of patterns) {
-    const matches = fields.filter(field => pattern.test(field.name.trim()));
-    const best = matches.find(field => field.fieldType === 'option') ?? matches.find(field => field.fieldType === 'array') ?? matches[0];
-    if (best) return best.id;
-  }
-  return undefined;
-};
+function readTicketFields(): TicketField[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) ?? '{}');
+    if (Array.isArray(saved.fields)) return saved.fields.filter((field: TicketField) => typeof field?.id === 'string');
+    // Earlier versions stored a fixed Work type and Cost/Capitalized mapping; carry those over as regular fields.
+    const legacy = [saved.workTypeField, saved.costField].filter((id): id is string => typeof id === 'string').map(id => ({ id, name: id }));
+    const extra: TicketField[] = Array.isArray(saved.extraFields) ? saved.extraFields : [];
+    return [...legacy, ...extra].filter((field, index, list) => list.findIndex(item => item.id === field.id) === index).slice(0, maxTicketFields);
+  } catch { return []; }
+}
 
 export function useTicketFields(enabled: boolean) {
-  const [config, setConfig] = useState<TicketFieldConfig>(() => {
-    try { return { detected: false, ...JSON.parse(localStorage.getItem(storageKey) ?? '{}') }; }
-    catch { return { detected: false }; }
-  });
+  const [saved, setFields] = useState<TicketField[]>(readTicketFields);
   const [options, setOptions] = useState<JiraField[]>([]);
   const [error, setError] = useState('');
-  useEffect(() => { localStorage.setItem(storageKey, JSON.stringify(config)); }, [config]);
+  useEffect(() => { localStorage.setItem(storageKey, JSON.stringify({ fields: saved })); }, [saved]);
   useEffect(() => {
     if (!enabled) return;
     let isCurrent = true;
-    invoke<JiraField[]>('list_custom_fields')
-      .then(fields => {
-        if (!isCurrent) return;
-        setOptions(fields); setError('');
-        setConfig(current => current.detected ? current : {
-          detected: true,
-          workTypeField: pickField(fields, [/^work ?type$/i, /work ?type/i, /work categor/i]),
-          costField: pickField(fields, [/^cost\s*\/\s*capitali[sz]ed$/i, /cost.*capitali[sz]|capitali[sz].*cost/i, /capitali[sz]/i, /\b(capex|opex)\b/i]),
-        });
-      })
+    invoke<JiraField[]>('list_fields')
+      .then(result => { if (isCurrent) { setOptions(result); setError(''); } })
       .catch(reason => { if (isCurrent) setError(readableError(reason)); });
     return () => { isCurrent = false; };
   }, [enabled]);
-  return { config, setConfig, options, error, isReady: config.detected || !!error };
+  const fields = useMemo(() => saved.map(field => ({ id: field.id, name: options.find(option => option.id === field.id)?.name ?? field.name })), [saved, options]);
+  return { fields, setFields, options, error };
 }
 
 export function buildTicketRows(issues: TeamIssue[], worklogs: TeamWorklog[]): TicketRow[] {
@@ -71,27 +65,20 @@ export function buildTicketRows(issues: TeamIssue[], worklogs: TeamWorklog[]): T
   return [...rows.values()].filter(row => row.logs.length).map(row => ({ ...row, people: [...(people.get(row.key)?.values() ?? [])].sort((a, b) => b.hours - a.hours) }));
 }
 
-export const costTone = (value?: string) => {
-  const text = (value ?? '').toLowerCase();
-  if (!text) return 'unset';
-  if (text.includes('capital') || text.includes('capex')) return 'capex';
-  if (text.includes('cost') || text.includes('opex') || text.includes('expense')) return 'opex';
-  return 'other';
-};
-
-export function ticketExportFile(rows: TicketRow[], stamp: string) {
+export function ticketExportFile(rows: TicketRow[], stamp: string, fields: TicketField[] = []) {
   const sorted = [...rows].sort((a, b) => b.periodHours - a.periodHours);
   const totalHours = sorted.reduce((sum, row) => sum + row.periodHours, 0);
   return {
     name: `trackline-team-tickets-${stamp}`,
     rows: [
-      ['Ticket', 'Summary', 'Issue type', 'Status', 'Parent', 'Work type', 'Cost/Capitalized', 'Logged in period (h)', 'Logged by'],
+      ['Ticket', 'Summary', 'Issue type', 'Status', 'Parent', ...fields.map(field => field.name), 'Logged in period (h)', 'Logged by'],
       ...sorted.map(row => [
-        row.key, row.summary, row.issueType ?? '', row.status ?? '', row.parentKey ?? '', row.workType ?? '', row.costType ?? '',
+        row.key, row.summary, row.issueType ?? '', row.status ?? '', row.parentKey ?? '',
+        ...fields.map(field => fieldValue(row, field) ?? ''),
         hoursNumber(row.periodHours),
         row.people.map(person => `${person.name} (${hoursNumber(person.hours)}h)`).join('; '),
       ]),
-      ['Total', `${sorted.length} ${sorted.length === 1 ? 'ticket' : 'tickets'}`, '', '', '', '', '', hoursNumber(totalHours), ''],
+      ['Total', `${sorted.length} ${sorted.length === 1 ? 'ticket' : 'tickets'}`, '', '', '', ...fields.map(() => ''), hoursNumber(totalHours), ''],
     ] as (string | number)[][],
   };
 }
@@ -113,16 +100,15 @@ function PeopleStack({ people }: { people: TicketPerson[] }) {
   </span>;
 }
 
-function FieldValue({ value, tone }: { value?: string; tone?: string }) {
-  return value ? <span className={`field-chip${tone ? ` ${tone}` : ''}`}>{value}</span> : <span className="field-unset">{notSet}</span>;
+function FieldValue({ value }: { value?: string }) {
+  return value ? <span className="field-chip">{value}</span> : <span className="field-unset">{notSet}</span>;
 }
 
-type TicketTableProps = { rows: TicketRow[]; isLoading: boolean; periodLabel: string; fieldsMissing: { workType: boolean; cost: boolean } };
+type TicketTableProps = { rows: TicketRow[]; isLoading: boolean; periodLabel: string; fields: TicketField[] };
 
-export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: TicketTableProps) {
+export function TicketTable({ rows, isLoading, periodLabel, fields }: TicketTableProps) {
   const [query, setQuery] = useState('');
-  const [workTypeFilter, setWorkTypeFilter] = useState('all');
-  const [costFilter, setCostFilter] = useState('all');
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [sort, setSort] = useState<{ key: SortKey; direction: 1 | -1 }>({ key: 'period', direction: -1 });
   const [detail, setDetail] = useState<TicketRow | null>(null);
 
@@ -133,43 +119,38 @@ export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: Tic
     return () => window.removeEventListener('keydown', close);
   }, [detail]);
 
-  const workTypes = useMemo(() => [...new Set(rows.map(row => row.workType ?? notSet))].sort(), [rows]);
-  const costTypes = useMemo(() => [...new Set(rows.map(row => row.costType ?? notSet))].sort(), [rows]);
+  const valuesByField = useMemo(() => new Map(fields.map(field => [field.id, [...new Set(rows.map(row => fieldValue(row, field) ?? notSet))].sort()])), [rows, fields]);
 
   const visibleRows = useMemo(() => {
     const text = query.trim().toLowerCase();
     const value = (row: TicketRow): string | number => {
       switch (sort.key) {
         case 'ticket': return row.key;
-        case 'workType': return row.workType ?? '~';
-        case 'cost': return row.costType ?? '~';
         case 'estimate': return row.originalEstimateSeconds ?? -1;
         case 'total': return row.timeSpentSeconds ?? -1;
-        default: return row.periodHours;
+        case 'period': return row.periodHours;
+        default: return row.fieldValues?.[sort.key.slice(6)] ?? '~';
       }
     };
     return rows
       .filter(row => !text || row.key.toLowerCase().includes(text) || row.summary.toLowerCase().includes(text) || row.people.some(person => person.name.toLowerCase().includes(text)))
-      .filter(row => workTypeFilter === 'all' || (row.workType ?? notSet) === workTypeFilter)
-      .filter(row => costFilter === 'all' || (row.costType ?? notSet) === costFilter)
+      .filter(row => fields.every(field => !filters[field.id] || filters[field.id] === 'all' || (fieldValue(row, field) ?? notSet) === filters[field.id]))
       .sort((a, b) => {
         const left = value(a); const right = value(b);
         const order = typeof left === 'number' && typeof right === 'number' ? left - right : String(left).localeCompare(String(right), undefined, { numeric: true });
         return order * sort.direction || b.periodHours - a.periodHours;
       });
-  }, [rows, query, workTypeFilter, costFilter, sort]);
+  }, [rows, query, filters, fields, sort]);
 
   const totalHours = visibleRows.reduce((sum, row) => sum + row.periodHours, 0);
-  const splitBy = (pick: (row: TicketRow) => string | undefined) => [...visibleRows.reduce((groups, row) => groups.set(pick(row) ?? notSet, (groups.get(pick(row) ?? notSet) ?? 0) + row.periodHours), new Map<string, number>())]
+  const splitBy = (field: TicketField) => [...visibleRows.reduce((groups, row) => { const label = fieldValue(row, field) ?? notSet; return groups.set(label, (groups.get(label) ?? 0) + row.periodHours); }, new Map<string, number>())]
     .map(([label, hours]) => ({ label, hours })).sort((a, b) => b.hours - a.hours);
-  const costSplit = splitBy(row => row.costType);
-  const workTypeSplit = splitBy(row => row.workType);
   const percent = (hours: number) => totalHours ? Math.round(hours / totalHours * 100) : 0;
 
   const header = (key: SortKey, label: string, className = '') => {
     const isActive = sort.key === key;
     return <th scope="col" className={className} aria-sort={isActive ? (sort.direction === 1 ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" onClick={() => setSort(current => ({ key, direction: current.key === key ? (current.direction === 1 ? -1 : 1) : key === 'ticket' || key === 'workType' || key === 'cost' ? 1 : -1 }))}>
+      <button type="button" onClick={() => setSort(current => ({ key, direction: current.key === key ? (current.direction === 1 ? -1 : 1) : key === 'ticket' || key.startsWith('field:') ? 1 : -1 }))}>
         {label}{isActive && (sort.direction === 1 ? <ArrowUp size={12} aria-hidden="true" /> : <ArrowDown size={12} aria-hidden="true" />)}
       </button>
     </th>;
@@ -179,24 +160,21 @@ export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: Tic
   const detailTotal = hoursOf(detail?.timeSpentSeconds);
 
   return <>
-    {(fieldsMissing.workType || fieldsMissing.cost) && <p className="ticket-hint">{fieldsMissing.workType && fieldsMissing.cost ? 'Work type and Cost/Capitalized fields are' : fieldsMissing.workType ? 'The Work type field is' : 'The Cost/Capitalized field is'} not mapped. Choose them in Settings → Jira fields.</p>}
+    {!fields.length && <p className="ticket-hint">No Jira fields configured. Add the fields you want to see in Settings → Jira fields.</p>}
 
-    <div className="ticket-summary" aria-label={`Hours by cost type and work type for ${periodLabel}`}>
-      <div className="split">
-        <span className="split-title">Cost / capitalized <b>{formatHours(totalHours)}</b></span>
-        <div className="split-bar" aria-hidden="true">{costSplit.map(item => <i key={item.label} className={`seg ${costTone(item.label === notSet ? undefined : item.label)}`} style={{ flexGrow: item.hours || 0.0001 }} />)}</div>
-        <ul className="split-legend">{costSplit.map(item => <li key={item.label}><i className={`dot ${costTone(item.label === notSet ? undefined : item.label)}`} />{item.label}<b>{formatHours(item.hours)}</b><small>{percent(item.hours)}%</small></li>)}</ul>
-      </div>
-      <div className="split">
-        <span className="split-title">Work type</span>
-        <ul className="split-list">{workTypeSplit.map(item => <li key={item.label}><span>{item.label}</span><span className="split-track"><i style={{ width: `${percent(item.hours)}%` }} /></span><b>{formatHours(item.hours)}</b></li>)}</ul>
-      </div>
-    </div>
+    {fields.length > 0 && <div className="ticket-summary" aria-label={`Hours by field for ${periodLabel}`}>
+      {fields.map(field => <div className="split" key={field.id}>
+        <span className="split-title">{field.name} <b>{formatHours(totalHours)}</b></span>
+        <ul className="split-list">{splitBy(field).map(item => <li key={item.label} className={item.label === notSet ? 'is-unset' : ''}>
+          <span className="split-row"><span className={`split-label${item.label === notSet ? ' unset' : ''}`}>{item.label}</span><b>{formatHours(item.hours)}</b><small>{percent(item.hours)}%</small></span>
+          <span className="split-track" aria-hidden="true"><i style={{ width: `${percent(item.hours)}%` }} /></span>
+        </li>)}</ul>
+      </div>)}
+    </div>}
 
     <div className="ticket-filters">
       <label className="ticket-search"><Search size={14} aria-hidden="true" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter by ticket, summary or person" aria-label="Filter tickets" /></label>
-      <label className="ticket-select"><span>Work type</span><select value={workTypeFilter} onChange={event => setWorkTypeFilter(event.target.value)}><option value="all">All</option>{workTypes.map(value => <option key={value}>{value}</option>)}</select></label>
-      <label className="ticket-select"><span>Cost/Capitalized</span><select value={costFilter} onChange={event => setCostFilter(event.target.value)}><option value="all">All</option>{costTypes.map(value => <option key={value}>{value}</option>)}</select></label>
+      {fields.map(field => <label className="ticket-select" key={field.id}><span>{field.name}</span><select value={filters[field.id] ?? 'all'} onChange={event => setFilters(current => ({ ...current, [field.id]: event.target.value }))}><option value="all">All</option>{(valuesByField.get(field.id) ?? []).map(value => <option key={value}>{value}</option>)}</select></label>)}
       <span className="ticket-count">{visibleRows.length} of {rows.length} tickets</span>
     </div>
 
@@ -204,8 +182,7 @@ export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: Tic
       <table className="ticket-table">
         <thead><tr>
           {header('ticket', 'Ticket', 'ticket-col')}
-          {header('workType', 'Work type', 'worktype-col')}
-          {header('cost', 'Cost/Capitalized', 'cost-col')}
+          {fields.map(field => <Fragment key={field.id}>{header(`field:${field.id}`, field.name, 'field-col')}</Fragment>)}
           {header('estimate', 'Estimate', 'num')}
           {header('period', 'Logged', 'num')}
           {header('total', 'Total logged')}
@@ -220,8 +197,7 @@ export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: Tic
               <TypeIcon row={row} />
               <span><span className="ticket-line"><b>{row.key}</b><strong>{row.summary}</strong></span><small>{[row.status, row.parentKey && `in ${row.parentKey}`].filter(Boolean).join(' · ')}</small></span>
             </button></th>
-            <td className="worktype-col"><FieldValue value={row.workType} /></td>
-            <td className="cost-col"><FieldValue value={row.costType} tone={costTone(row.costType)} /></td>
+            {fields.map(field => <td className="field-col" key={field.id}><FieldValue value={fieldValue(row, field)} /></td>)}
             <td className="num">{estimate !== undefined ? formatHours(estimate) : <span className="field-unset">—</span>}</td>
             <td className="num strong">{formatHours(row.periodHours)}</td>
             <td><div className="spent">
@@ -234,7 +210,7 @@ export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: Tic
         })}</tbody>
         <tfoot><tr>
           <th scope="row" className="ticket-col">{visibleRows.length} tickets</th>
-          <td colSpan={2} />
+          {fields.length > 0 && <td colSpan={fields.length} />}
           <td className="num">{formatHours(visibleRows.reduce((sum, row) => sum + (hoursOf(row.originalEstimateSeconds) ?? 0), 0))}</td>
           <td className="num strong">{formatHours(totalHours)}</td>
           <td colSpan={2} />
@@ -249,8 +225,7 @@ export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: Tic
         <button className="close" onClick={() => setDetail(null)} aria-label="Close"><X size={18} /></button>
         <div className="ticket-detail-head"><TypeIcon row={detail} /><div><b>{detail.key}</b><h2 id="ticket-detail-title">{detail.summary}</h2><p>{[detail.issueType, detail.status, detail.parentKey && `in ${detail.parentKey}${detail.parentSummary ? ` · ${detail.parentSummary}` : ''}`].filter(Boolean).join(' · ')}</p></div></div>
         <dl className="ticket-facts">
-          <div><dt>Work type</dt><dd><FieldValue value={detail.workType} /></dd></div>
-          <div><dt>Cost/Capitalized</dt><dd><FieldValue value={detail.costType} tone={costTone(detail.costType)} /></dd></div>
+          {fields.map(field => <div key={field.id}><dt>{field.name}</dt><dd><FieldValue value={fieldValue(detail, field)} /></dd></div>)}
           <div><dt>Estimate</dt><dd>{detailEstimate !== undefined ? formatHours(detailEstimate) : '—'}</dd></div>
           <div><dt>Total logged</dt><dd>{detailTotal !== undefined ? formatHours(detailTotal) : '—'}</dd></div>
           <div><dt>Logged in {periodLabel}</dt><dd>{formatHours(detail.periodHours)}</dd></div>
@@ -264,4 +239,58 @@ export function TicketTable({ rows, isLoading, periodLabel, fieldsMissing }: Tic
       </section>
     </div>}
   </>;
+}
+
+type TicketFieldListProps = { fields: TicketField[]; options: JiraField[]; onChange: (fields: TicketField[]) => void };
+
+export function TicketFieldList({ fields, options, onChange }: TicketFieldListProps) {
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const isFull = fields.length >= maxTicketFields;
+  const matches = useMemo(() => {
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return options
+      .filter(option => !fields.some(field => field.id === option.id))
+      .filter(option => terms.every(term => `${option.name} ${option.id}`.toLowerCase().includes(term)));
+  }, [options, fields, query]);
+  useEffect(() => { setActive(0); }, [query]);
+  const add = (option?: JiraField) => {
+    if (!option || isFull) return;
+    onChange([...fields, { id: option.id, name: option.name }]);
+    setQuery('');
+  };
+  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); setIsOpen(true); setActive(index => Math.min(index + 1, matches.length - 1)); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(index => Math.max(index - 1, 0)); }
+    else if (event.key === 'Enter') { event.preventDefault(); if (isOpen) add(matches[active]); }
+    else if (event.key === 'Escape' && isOpen) { event.preventDefault(); event.stopPropagation(); setIsOpen(false); }
+  };
+  const move = (index: number, offset: number) => {
+    const next = [...fields];
+    [next[index], next[index + offset]] = [next[index + offset], next[index]];
+    onChange(next);
+  };
+  const showList = isOpen && !isFull;
+  return <div className="jira-fields">
+    {fields.length ? <ul className="jira-field-list" aria-label="Configured Jira fields">{fields.map((field, index) => <li key={field.id}>
+      <span><b>{field.name}</b><small>{field.id}</small></span>
+      <button type="button" className="icon-mini" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move ${field.name} up`} title="Move up"><ArrowUp size={14} /></button>
+      <button type="button" className="icon-mini" onClick={() => move(index, 1)} disabled={index === fields.length - 1} aria-label={`Move ${field.name} down`} title="Move down"><ArrowDown size={14} /></button>
+      <button type="button" className="icon-mini" onClick={() => onChange(fields.filter(item => item.id !== field.id))} aria-label={`Remove ${field.name}`} title="Remove"><X size={14} /></button>
+    </li>)}</ul> : <p className="setting-hint">No fields yet. Search below to add one.</p>}
+    <div className="jira-field-add">
+      <label className="jira-field-search"><Plus size={14} aria-hidden="true" /><input value={query} disabled={isFull || !options.length}
+        onChange={event => { setQuery(event.target.value); setIsOpen(true); }} onFocus={() => setIsOpen(true)} onBlur={() => setIsOpen(false)} onKeyDown={onKeyDown}
+        placeholder={isFull ? `Up to ${maxTicketFields} fields` : 'Search fields to add…'} role="combobox" aria-expanded={showList} aria-controls="jira-field-options" aria-autocomplete="list" aria-label="Search fields to add"
+        aria-activedescendant={showList && matches[active] ? `jira-field-option-${matches[active].id}` : undefined} spellCheck={false} autoComplete="off" /></label>
+      {showList && <ul className="jira-field-options" id="jira-field-options" role="listbox" aria-label="Jira fields">
+        {matches.length ? matches.map((option, index) => <li key={option.id} id={`jira-field-option-${option.id}`} role="option" aria-selected={index === active}
+          className={index === active ? 'active' : ''} onMouseDown={event => { event.preventDefault(); add(option); }} onMouseEnter={() => setActive(index)}>
+          <b>{option.name}</b><small>{option.custom ? 'Custom' : 'Jira'}</small>
+        </li>) : <li className="empty" role="presentation">No matching fields</li>}
+      </ul>}
+    </div>
+    <p className="setting-hint">Each field becomes a column, filter and breakdown in the Tickets view, and a column in the tickets CSV.</p>
+  </div>;
 }

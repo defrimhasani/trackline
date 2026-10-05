@@ -17,7 +17,7 @@ Trackline is a free, open-source desktop app built with [Tauri](https://tauri.ap
 - **Log time fast.** Click an hour in the calendar, pick an issue from *Recent activity*, *Recently viewed*, or search all of Jira, and save. Worklogs are written straight to Jira.
 - **Focus on incomplete days.** Highlight working days below your daily target (8h by default, configurable) and log the missing time in one click.
 - **Team worklogs.** A people × days grid for chosen Jira projects plus pinned teammates, with per-day details and the same incomplete-day focus.
-- **Tickets view.** Switch the team view to one row per ticket: issue type, status, Work type, Cost/Capitalized, estimate, hours logged in the period, total against estimate, and who logged time. A summary bar splits hours into Capitalized and Cost, and by work type. The two custom fields are detected by name and can be changed in *Settings → Jira fields*.
+- **Tickets view.** Switch the team view to one row per ticket: issue type, status, the Jira fields you choose, estimate, hours logged in the period, total against estimate, and who logged time. Pick any Jira fields, built-in ones like Fix versions, Components or Labels as well as custom fields, in any order, in *Settings → Jira fields*; each one gets its own column, filter and hours breakdown, and is included in the export.
 - **CSV export.** Your own worklogs, or a team summary, every individual worklog line, and per-ticket totals.
 - **Daily reminder.** A native notification on weekdays if you are below target at your chosen time.
 - **Automatic updates.** Trackline checks GitHub for new versions and updates itself when you choose.

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import { TeamWorklogs, buildTeamRows, teamExportFiles, useTeamScope, useTeamWorklogs } from './team';
-import { useTicketFields } from './tickets';
+import { TicketFieldList, useTicketFields } from './tickets';
 import { MonthPicker } from './month-picker';
 import { UpdateBanner, UpdateSettings, useAppUpdates } from './updates';
 import { addDays, daysBetween, formatDuration, formatHours, localDate, parseDuration, readableError, toCsv, weekdayLabels } from './utils';
@@ -230,7 +230,7 @@ export default function App() {
     : { start: localDate(monthStart), end: localDate(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1)) };
   const ticketFields = useTicketFields(syncState === 'ready');
   const updates = useAppUpdates();
-  const team = useTeamWorklogs(teamScope, teamRange, (view === 'worklogs' || modal === 'export') && ticketFields.isReady, ticketFields.config);
+  const team = useTeamWorklogs(teamScope, teamRange, (view === 'worklogs' || modal === 'export'), ticketFields.fields);
   const teamRows = useMemo(() => buildTeamRows(team.worklogs, teamScope.people), [team.worklogs, teamScope.people]);
   const teamDates = daysBetween(teamRange.start, teamRange.end);
   const teamPeriodDays = hideWeekends ? teamDates.filter(date => date.getDay() % 6 !== 0) : teamDates;
@@ -447,7 +447,7 @@ export default function App() {
   const exportCalendar = async () => {
     const stamp = `${teamRange.start}_${localDate(addDays(new Date(`${teamRange.end}T12:00:00`), -1))}`;
     const files = exportScope === 'Team worklogs'
-      ? teamExportFiles(teamRows, team.worklogs, teamDates, stamp, team.issues)
+      ? teamExportFiles(teamRows, team.worklogs, teamDates, stamp, team.issues, ticketFields.fields)
       : [{ name: `trackline-my-worklogs-${stamp}`, rows: [['Date', 'Start', 'Issue', 'Summary', 'Hours', 'Description'], ...periodLogs.filter(log => log.date >= teamRange.start && log.date < teamRange.end).sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start).map(log => [log.date, `${String(Math.floor(log.start)).padStart(2, '0')}:${String(Math.round((log.start % 1) * 60)).padStart(2, '0')}`, log.issue, log.title, Number(log.duration.toFixed(2)), log.description])] }];
     setIsExporting(true); setExportError('');
     try {
@@ -522,17 +522,10 @@ export default function App() {
              </div>
            </section>
            <section className="settings-section" aria-labelledby="settings-fields">
-             <div className="settings-intro"><ListTree size={18} aria-hidden="true" /><div><h2 id="settings-fields">Jira fields</h2><p>Custom fields shown in the Tickets view and export. Trackline picks them by name; change them if your site uses different fields.</p></div></div>
+             <div className="settings-intro"><ListTree size={18} aria-hidden="true" /><div><h2 id="settings-fields">Jira fields</h2><p>Choose the Jira fields shown in the Tickets view and export, in the order you want.</p></div></div>
              <div className="setting-control">
-               {syncState !== 'ready' ? <p className="setting-hint">Connect Jira to choose fields.</p> : ticketFields.error ? <p className="setting-hint">{ticketFields.error}</p> : <div className="field-pickers">
-                 {([['workTypeField', 'Work type', 'jira-field-work-type'], ['costField', 'Cost/Capitalized', 'jira-field-cost']] as const).map(([key, label, id]) => <div className="field" key={key}>
-                   <label className="field-label" htmlFor={id}>{label}</label>
-                   <select id={id} className="field-select" value={ticketFields.config[key] ?? ''} onChange={event => ticketFields.setConfig(current => ({ ...current, detected: true, [key]: event.target.value || undefined }))}>
-                     <option value="">Not used</option>
-                     {ticketFields.options.map(field => <option key={field.id} value={field.id}>{field.name}</option>)}
-                   </select>
-                 </div>)}
-               </div>}
+               {syncState !== 'ready' ? <p className="setting-hint">Connect Jira to choose fields.</p> : ticketFields.error ? <p className="setting-hint">{ticketFields.error}</p>
+                 : <TicketFieldList fields={ticketFields.fields} options={ticketFields.options} onChange={ticketFields.setFields} />}
              </div>
            </section>
            <section className="settings-section" aria-labelledby="settings-updates">
@@ -561,7 +554,7 @@ export default function App() {
        </section> : view === 'worklogs' ? <TeamWorklogs scope={teamScope} setScope={setTeamScope} worklogs={team.worklogs} rows={teamRows} isLoading={team.isLoading} error={team.error} onRefresh={team.refresh}
         periodDays={teamPeriodDays} periodLabel={periodLabel} calendarMode={calendarMode} onModeChange={setCalendarMode} workdayHours={workdayHours} todayValue={todayValue}
         focusIncomplete={focusIncomplete} onFocusChange={setFocusIncomplete} hideWeekends={hideWeekends} onHideWeekendsChange={setHideWeekends}
-        issues={team.issues} fieldsMissing={{ workType: !ticketFields.config.workTypeField, cost: !ticketFields.config.costField }} /> : <div className="content">
+        issues={team.issues} fields={ticketFields.fields} /> : <div className="content">
         <section className="calendar-panel" aria-labelledby="calendar-title">
              <div className="calendar-heading"><div><h1 id="calendar-title">{calendarMode === 'week' ? 'Your workweek' : 'Your month'}</h1><p>{isCalendarLoading ? 'Loading your Jira worklogs…' : syncState === 'error' ? syncError : periodTotal ? `${formatHours(periodTotal)} logged${calendarMode === 'month' ? ` across ${loggedDays} ${loggedDays === 1 ? 'day' : 'days'}` : ''} · ${formatHours(Math.max(0, periodTarget - periodTotal))} remaining` : `No Jira time logged for this ${calendarMode}.`}</p></div><div className="calendar-controls"><div className="calendar-options"><label className="calendar-option"><button type="button" role="switch" aria-checked={focusIncomplete} className={`toggle${focusIncomplete ? ' on' : ''}`} onClick={() => setFocusIncomplete(value => !value)}><i /></button>Focus on incomplete days{showFocus && <b aria-label={`${incompleteCount} incomplete ${incompleteCount === 1 ? 'day' : 'days'}`}>{incompleteCount}</b>}</label><label className="calendar-option"><button type="button" role="switch" aria-checked={hideWeekends} className={`toggle${hideWeekends ? ' on' : ''}`} onClick={() => setHideWeekends(value => !value)}><i /></button>Hide weekends</label></div><div className="view-tabs"><button className={calendarMode === 'week' ? 'selected' : ''} aria-pressed={calendarMode === 'week'} onClick={() => setCalendarMode('week')}>Week</button><button className={calendarMode === 'month' ? 'selected' : ''} aria-pressed={calendarMode === 'month'} onClick={() => setCalendarMode('month')}>Month</button></div></div></div>
           <div className="dispatch-legend"><span><i className="route-dot teal" />Logged</span><span><i className="route-dot blue" />Review / meeting</span><span><i className="route-dot coral" />Needs attention</span><button onClick={() => showToast('Issue filters are ready for your Jira data.')}><CircleHelp size={15} />How totals work</button></div>
