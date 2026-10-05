@@ -1,6 +1,6 @@
 [package]
 name = "trackline"
-version = "0.5.1"
+version = "0.6.0"
 description = "A Jira Cloud worklog calendar"
 authors = ["Trackline"]
 edition = "2021"

@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.6.0 — 2026-10-05
 
 ### New
 - **Choose your own Jira fields.** Pick any Jira fields in **Settings → Jira fields** by searching for them: built-in ones like Fix versions, Components, Labels or Priority, as well as custom fields, and set their order. Each field becomes a column, filter and hours breakdown in the Tickets view, shows in the ticket details, and is a column in the tickets CSV.
