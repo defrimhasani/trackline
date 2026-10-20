@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.7.0 — 2026-10-20
 
 ### New
 - **Insights.** A new screen shows how your time logging is going over the last 4, 8 or 12 weeks: logged vs target hours, completion, daily average, current streak, hours per week, average by weekday, where your time goes (top issues and projects), and past days that still need time, with a one-click **Open day**.
