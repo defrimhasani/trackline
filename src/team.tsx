@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { FolderKanban, Pin, Plus, Search, UserRound, X } from 'lucide-react';
-import { formatHours, hoursNumber, isWeekend, localDate, readableError, weekdayLabels } from './utils';
+import { completeSync, formatHours, hoursNumber, isWeekend, localDate, readableError, weekdayLabels, type SyncStatus } from './utils';
+import { SyncNotice, loadTicket } from './sync';
 import { TicketTable, buildTicketRows, ticketExportFile, type TeamIssue, type TicketField } from './tickets';
 
 export type TeamProject = { key: string; name: string; avatarUrl?: string };
@@ -22,10 +23,13 @@ export function useTeamScope() {
   return [scope, setScope] as const;
 }
 
+type TeamData = { worklogs: TeamWorklog[]; issues: TeamIssue[]; sync: SyncStatus };
+
 export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean, fields: TicketField[] = []) {
-  const cache = useRef(new Map<string, { worklogs: TeamWorklog[]; issues: TeamIssue[] }>());
+  const cache = useRef(new Map<string, TeamData>());
   const [worklogs, setWorklogs] = useState<TeamWorklog[]>([]);
   const [issues, setIssues] = useState<TeamIssue[]>([]);
+  const [sync, setSync] = useState<SyncStatus>(completeSync);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -40,25 +44,29 @@ export function useTeamWorklogs(scope: TeamScope, range: Range, enabled: boolean
     if (!enabled) return;
     const cacheKey = `${scopeKey}|${range.start}|${range.end}`;
     const cached = cache.current.get(cacheKey);
-    if (cached) { shownKey.current = cacheKey; setWorklogs(cached.worklogs); setIssues(cached.issues); setIsLoading(false); setError(''); return; }
-    if (!projectKeys.length && !accountIds.length) { setWorklogs([]); setIssues([]); setIsLoading(false); setError(''); return; }
+    if (cached) { shownKey.current = cacheKey; setWorklogs(cached.worklogs); setIssues(cached.issues); setSync(cached.sync); setIsLoading(false); setError(''); return; }
+    if (!projectKeys.length && !accountIds.length) { setWorklogs([]); setIssues([]); setSync(completeSync); setIsLoading(false); setError(''); return; }
     let isCurrent = true;
     setIsLoading(true); setError('');
-    if (shownKey.current !== cacheKey) { setWorklogs([]); setIssues([]); }
+    if (shownKey.current !== cacheKey) { setWorklogs([]); setIssues([]); setSync(completeSync); }
     shownKey.current = cacheKey;
-    invoke<{ worklogs: TeamWorklog[]; issues: TeamIssue[] }>('get_team_worklogs', {
+    invoke<TeamData>('get_team_worklogs', {
       projectKeys, accountIds, startDate: range.start, endDate: range.end,
       startedAfter: new Date(`${range.start}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${range.end}T00:00:00`).getTime() + 86_400_000,
-      fieldIds,
+      fieldIds, ticket: loadTicket('team'),
     })
-      .then(result => { cache.current.set(cacheKey, result); if (isCurrent) { setWorklogs(result.worklogs); setIssues(result.issues); setSyncedAt(new Date()); } })
+      .then(result => {
+        // An incomplete load is shown but not remembered, so coming back to this period tries Jira again.
+        if (result.sync.complete) cache.current.set(cacheKey, result);
+        if (isCurrent) { setWorklogs(result.worklogs); setIssues(result.issues); setSync(result.sync); setSyncedAt(new Date()); }
+      })
       .catch(reason => { if (isCurrent) setError(readableError(reason)); })
       .finally(() => { if (isCurrent) setIsLoading(false); });
     return () => { isCurrent = false; };
   }, [enabled, scopeKey, range.start, range.end, reloadKey]);
 
   const refresh = () => { cache.current.clear(); setReloadKey(key => key + 1); };
-  return { worklogs, issues, isLoading, error, refresh, syncedAt };
+  return { worklogs, issues, sync, isLoading, error, refresh, syncedAt };
 }
 
 export function buildTeamRows(worklogs: TeamWorklog[], people: TeamPerson[]): TeamRow[] {
@@ -156,7 +164,7 @@ function ScopePicker<T>({ label, placeholder, search, optionKey, renderOption, o
 
 type TeamWorklogsProps = {
   scope: TeamScope; setScope: (update: (current: TeamScope) => TeamScope) => void;
-  worklogs: TeamWorklog[]; rows: TeamRow[]; isLoading: boolean; error: string; onRefresh: () => void;
+  worklogs: TeamWorklog[]; rows: TeamRow[]; sync: SyncStatus; isLoading: boolean; error: string; onRefresh: () => void;
   periodDays: Date[]; periodLabel: string; calendarMode: 'week' | 'month'; onModeChange: (mode: 'week' | 'month') => void;
   workdayHours: number; todayValue: string;
   focusIncomplete: boolean; onFocusChange: (value: boolean) => void;
@@ -165,14 +173,14 @@ type TeamWorklogsProps = {
 };
 
 export function TeamWorklogs(props: TeamWorklogsProps) {
-  const { scope, setScope, rows, isLoading, error, onRefresh, periodDays, periodLabel, calendarMode, workdayHours, todayValue, focusIncomplete, hideWeekends } = props;
+  const { scope, setScope, rows, sync, isLoading, error, onRefresh, periodDays, periodLabel, calendarMode, workdayHours, todayValue, focusIncomplete, hideWeekends } = props;
   const [detail, setDetail] = useState<{ row: TeamRow; date: Date } | null>(null);
   const [groupBy, setGroupBy] = useState<'people' | 'tickets'>(() => localStorage.getItem('trackline.team.groupBy') === 'tickets' ? 'tickets' : 'people');
   useEffect(() => { localStorage.setItem('trackline.team.groupBy', groupBy); }, [groupBy]);
   const ticketRows = useMemo(() => buildTicketRows(props.issues, props.worklogs), [props.issues, props.worklogs]);
   const isTickets = groupBy === 'tickets';
   const hasScope = scope.projects.length > 0 || scope.people.length > 0;
-  const showFocus = focusIncomplete && !isLoading && !error && hasScope;
+  const showFocus = focusIncomplete && !isLoading && !error && hasScope && sync.complete;
   const missingFor = (row: TeamRow, date: Date) => missingHours(row.hoursByDate.get(localDate(date)) ?? 0, date, todayValue, workdayHours);
   const incompleteCount = showFocus ? rows.reduce((sum, row) => sum + periodDays.filter(date => missingFor(row, date) > 0).length, 0) : 0;
   const dayTotals = periodDays.map(date => rows.reduce((sum, row) => sum + (row.hoursByDate.get(localDate(date)) ?? 0), 0));
@@ -186,14 +194,17 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
     return () => window.removeEventListener('keydown', close);
   }, [detail]);
 
+  const loggedText = sync.complete ? `${formatHours(grandTotal)} logged in ${periodLabel}`
+    : grandTotal ? `at least ${formatHours(grandTotal)} logged in ${periodLabel}`
+    : `no time loaded for ${periodLabel}`;
   const summaryText = !hasScope ? 'Choose Jira projects or pin people to build your team view.'
     : isLoading ? 'Loading team worklogs…'
     : error ? error
-    : isTickets ? `${ticketRows.length} ${ticketRows.length === 1 ? 'ticket' : 'tickets'} · ${formatHours(grandTotal)} logged in ${periodLabel}`
-    : `${rows.length} ${rows.length === 1 ? 'person' : 'people'} · ${formatHours(grandTotal)} logged in ${periodLabel}${showFocus ? ` · ${incompleteCount} incomplete ${incompleteCount === 1 ? 'day' : 'days'}` : ''}`;
+    : isTickets ? `${ticketRows.length} ${ticketRows.length === 1 ? 'ticket' : 'tickets'} · ${loggedText}`
+    : `${rows.length} ${rows.length === 1 ? 'person' : 'people'} · ${loggedText}${showFocus ? ` · ${incompleteCount} incomplete ${incompleteCount === 1 ? 'day' : 'days'}` : ''}`;
 
   const detailHours = detail ? detail.row.hoursByDate.get(localDate(detail.date)) ?? 0 : 0;
-  const detailMissing = detail ? missingFor(detail.row, detail.date) : 0;
+  const detailMissing = detail && sync.complete ? missingFor(detail.row, detail.date) : 0;
   const detailLogs = detail ? detail.row.logsByDate.get(localDate(detail.date)) ?? [] : [];
 
   return <section className="team-page" aria-labelledby="team-title">
@@ -234,9 +245,10 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
       </div>
     </div>
 
+    {hasScope && !isLoading && !error && <SyncNotice sync={sync} onRetry={onRefresh} />}
     {!hasScope ? <div className="team-empty"><UserRound size={22} aria-hidden="true" /><strong>Build your team view</strong><span>Add a Jira project to see everyone who logs time on it, or pin people so they always appear, even on days they log nothing.</span></div>
       : error ? <div className="team-empty"><strong>Team worklogs could not load</strong><span>{error}</span><button type="button" onClick={onRefresh}>Try again</button></div>
-      : !isLoading && !rows.length ? <div className="team-empty"><strong>No worklogs in {periodLabel}</strong><span>Nobody in this scope logged time for this {calendarMode}. Try another {calendarMode}, or pin people to track their missing days.</span></div>
+      : !isLoading && !rows.length ? (sync.complete ? <div className="team-empty"><strong>No worklogs in {periodLabel}</strong><span>Nobody in this scope logged time for this {calendarMode}. Try another {calendarMode}, or pin people to track their missing days.</span></div> : null)
       : isTickets ? <TicketTable rows={ticketRows} isLoading={isLoading} periodLabel={periodLabel} fields={props.fields} />
       : <div className="team-grid-wrap" style={{ '--day-count': periodDays.length } as CSSProperties}>
         <table className={`team-grid${calendarMode === 'month' ? ' is-dense' : ''}`}>
@@ -252,7 +264,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
               const missing = missingFor(row, date);
               const focusState = !showFocus ? '' : missing > 0 ? ' is-incomplete' : ' is-muted';
               return <td key={localDate(date)} className={`hours-cell${hours ? ' has-hours' : ''}${isWeekend(date) ? ' weekend-col' : ''}${focusState}`}>
-                <button type="button" onClick={() => setDetail({ row, date })} title={`${row.name} · ${longDate(date)}: ${formatHours(hours)} logged${showFocus && missing > 0 ? `, ${formatHours(missing)} missing` : ''}`} aria-label={`${row.name}, ${longDate(date)}: ${hours ? `${formatHours(hours)} logged` : 'no time logged'}${showFocus && missing > 0 ? `, ${formatHours(missing)} missing` : ''}`}>
+                <button type="button" onClick={() => setDetail({ row, date })} title={`${row.name} · ${longDate(date)}: ${formatHours(hours)} logged${showFocus && missing > 0 ? `, ${formatHours(missing)} missing` : ''}`} aria-label={`${row.name}, ${longDate(date)}: ${hours ? `${formatHours(hours)} logged` : sync.complete ? 'no time logged' : 'no time loaded'}${showFocus && missing > 0 ? `, ${formatHours(missing)} missing` : ''}`}>
                   {hours ? formatHours(hours) : '–'}
                   {showFocus && missing > 0 && calendarMode === 'week' && <small>−{formatHours(missing)}</small>}
                   {!isWeekend(date) && <span className="cell-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, hours / workdayHours * 100)}%` }} /></span>}
@@ -278,7 +290,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
         {detailLogs.length ? <ul className="team-detail-list">{[...detailLogs].sort((a, b) => a.startedAt.localeCompare(b.startedAt)).map(log => <li key={log.id}>
           <div><b>{log.issue}</b><span>{log.summary}</span><em>{formatHours(log.durationMinutes / 60)}</em></div>
           <small>{log.startedAt.slice(11, 16)}{log.description ? ` · ${log.description}` : ''}</small>
-        </li>)}</ul> : <p className="team-detail-empty">No time logged on this day.</p>}
+        </li>)}</ul> : <p className="team-detail-empty">{sync.complete ? 'No time logged on this day.' : 'No time loaded for this day. Some Jira worklogs could not be loaded.'}</p>}
       </section>
     </div>}
   </section>;

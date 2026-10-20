@@ -5,7 +5,9 @@ import { TeamWorklogs, buildTeamRows, teamExportFiles, useTeamScope, useTeamWork
 import { TicketFieldList, useTicketFields } from './tickets';
 import { MonthPicker } from './month-picker';
 import { UpdateBanner, UpdateSettings, useAppUpdates } from './updates';
-import { addDays, daysBetween, formatDuration, formatHours, localDate, parseDuration, readableError, toCsv, weekdayLabels } from './utils';
+import { SyncNotice, loadTicket } from './sync';
+import { Insights } from './insights';
+import { addDays, completeSync, daysBetween, formatDuration, formatHours, localDate, parseDuration, readableError, toCsv, weekdayLabels, withCompleteness, type SyncStatus } from './utils';
 import {
   Bell, BellRing, Bookmark, Bug, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, CircleHelp, Clock3,
   Download, ExternalLink, FileSpreadsheet, LayoutDashboard, ListTree, Moon, Pencil, Plus, Trash,
@@ -21,6 +23,7 @@ type DayIssue = { issue: string; title: string; duration: number; accent: Worklo
 type CachedRange = { start: string; end: string; logs: Worklog[] };
 
 type JiraWorklog = { id: string; date: string; startedAt: string; issue: string; summary: string; durationMinutes: number; description: string };
+type WeekWorklogs = { worklogs: JiraWorklog[]; sync: SyncStatus };
 type JiraConnection = { connected: boolean; displayName?: string; siteName?: string };
 
 const displayDate = (date: Date) => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -73,9 +76,11 @@ const siteHost = (site?: string) => { try { return site ? new URL(site).host : '
 
 export default function App() {
   const [logs, setLogs] = useState<Worklog[]>([]);
+  const [transparency, setTransparency] = useState(() => { const raw = localStorage.getItem('trackline.transparency'); const saved = Number(raw); return raw !== null && Number.isFinite(saved) ? Math.min(100, Math.max(0, saved)) : 50; });
+  useEffect(() => { localStorage.setItem('trackline.transparency', String(transparency)); }, [transparency]);
   const [isDark, setIsDark] = useState(() => localStorage.getItem('trackline.theme') !== 'light');
   useEffect(() => { localStorage.setItem('trackline.theme', isDark ? 'dark' : 'light'); }, [isDark]);
-  const [view, setView] = useState<'calendar' | 'settings' | 'worklogs'>('calendar');
+  const [view, setView] = useState<'calendar' | 'settings' | 'worklogs' | 'insights'>('calendar');
   const [reminderEnabled, setReminderEnabled] = useState(() => localStorage.getItem('trackline.reminderEnabled') !== 'false');
   const [reminderTime, setReminderTime] = useState(() => localStorage.getItem('trackline.reminderTime') ?? '16:00');
   useEffect(() => { localStorage.setItem('trackline.reminderEnabled', String(reminderEnabled)); }, [reminderEnabled]);
@@ -120,6 +125,7 @@ export default function App() {
   const [syncState, setSyncState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [syncError, setSyncError] = useState('');
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
+  const [calendarSync, setCalendarSync] = useState<SyncStatus>(completeSync);
   const rangeCache = useRef<CachedRange[]>([]);
   const [calendarReload, setCalendarReload] = useState(0);
   const [calendarSyncedAt, setCalendarSyncedAt] = useState<Date | null>(null);
@@ -152,23 +158,24 @@ export default function App() {
     let isCurrentRange = true;
     const { start, end } = range;
     const cached = rangeCache.current.find(entry => entry.start <= start && entry.end >= end);
-    if (cached) { shownRange.current = `${start}|${end}`; setLogs(cached.logs.filter(log => log.date >= start && log.date < end)); setIsCalendarLoading(false); return; }
+    if (cached) { shownRange.current = `${start}|${end}`; setLogs(cached.logs.filter(log => log.date >= start && log.date < end)); setCalendarSync(completeSync); setIsCalendarLoading(false); return; }
     setIsCalendarLoading(true);
-    if (shownRange.current !== `${start}|${end}`) setLogs([]);
+    if (shownRange.current !== `${start}|${end}`) { setLogs([]); setCalendarSync(completeSync); }
     shownRange.current = `${start}|${end}`;
     invoke<JiraConnection>('jira_connection').then(connection => {
       if (isCurrentRange) setJiraAccount(connection);
       if (!connection.connected) throw new Error('Connect your Jira account from Settings to load worklogs.');
-      return invoke<JiraWorklog[]>('get_week_worklogs', { startDate: start, endDate: end, startedAfter: new Date(`${start}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${end}T00:00:00`).getTime() + 86_400_000 });
+      return invoke<WeekWorklogs>('get_week_worklogs', { startDate: start, endDate: end, startedAfter: new Date(`${start}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${end}T00:00:00`).getTime() + 86_400_000, ticket: loadTicket('calendar') });
     })
-      .then(worklogs => {
+      .then(({ worklogs, sync }) => {
         const rangeLogs = worklogs.map(worklog => {
           const [hour, minute] = worklog.startedAt.slice(11, 16).split(':').map(Number);
           return { id: Number(worklog.id), date: worklog.date, issue: worklog.issue, title: worklog.summary, duration: worklog.durationMinutes / 60, start: hour + minute / 60, accent: accentFor(worklog.issue), description: worklog.description };
         });
-        rangeCache.current.push({ start, end, logs: rangeLogs });
+        // An incomplete load is shown but not remembered, so coming back to this period tries Jira again.
+        if (sync.complete) rangeCache.current.push({ start, end, logs: rangeLogs });
         if (!isCurrentRange) return;
-        setLogs(rangeLogs); setSyncState('ready'); setIsCalendarLoading(false); setCalendarSyncedAt(new Date());
+        setLogs(rangeLogs); setCalendarSync(sync); setSyncState('ready'); setIsCalendarLoading(false); setCalendarSyncedAt(new Date());
       })
       .catch(error => { if (!isCurrentRange) return; setSyncError(readableError(error)); setSyncState('error'); setIsCalendarLoading(false); });
     return () => { isCurrentRange = false; };
@@ -219,7 +226,13 @@ export default function App() {
     const missing = workdayHours - (hoursByDate.get(value) ?? 0);
     return missing > 0.01 ? missing : 0;
   };
-  const showFocus = focusIncomplete && !isCalendarLoading && syncState === 'ready';
+  const isCalendarPartial = syncState === 'ready' && !isCalendarLoading && !calendarSync.complete;
+  const showFocus = focusIncomplete && !isCalendarLoading && syncState === 'ready' && calendarSync.complete;
+  const calendarSummary = isCalendarLoading ? 'Loading your Jira worklogs…'
+    : syncState === 'error' ? syncError
+    : periodTotal ? `${isCalendarPartial ? 'At least ' : ''}${formatHours(periodTotal)} logged${calendarMode === 'month' ? ` across ${loggedDays} ${loggedDays === 1 ? 'day' : 'days'}` : ''}${isCalendarPartial ? '' : ` · ${formatHours(Math.max(0, periodTarget - periodTotal))} remaining`}`
+    : isCalendarPartial ? `Some Jira worklogs could not be loaded for this ${calendarMode}.`
+    : `No Jira time logged for this ${calendarMode}.`;
   const focusClass = (missing: number) => !showFocus ? '' : missing > 0 ? ' is-incomplete' : ' is-muted';
   const incompleteCount = (calendarMode === 'week' ? days.map(day => new Date(`${day.value}T12:00:00`)) : monthDays.filter(date => date.getMonth() === monthStart.getMonth())).filter(date => missingHoursFor(date) > 0).length;
   const visibleWeekdays = hideWeekends ? weekdayLabels.slice(0, 5) : weekdayLabels;
@@ -236,9 +249,12 @@ export default function App() {
   const teamPeriodDays = hideWeekends ? teamDates.filter(date => date.getDay() % 6 !== 0) : teamDates;
   const hasTeamScope = teamScope.projects.length > 0 || teamScope.people.length > 0;
   const teamScopeText = [...teamScope.projects.map(project => project.key), ...teamScope.people.map(person => person.displayName)].join(', ');
-  const refreshData = () => {
+  const reloadCalendar = () => {
     rangeCache.current = [];
     setCalendarReload(key => key + 1);
+  };
+  const refreshData = () => {
+    reloadCalendar();
     team.refresh();
   };
   useEffect(() => {
@@ -268,7 +284,9 @@ export default function App() {
       localStorage.setItem('trackline.reminderSentOn', today);
       let logged = 0;
       try {
-        const entries = await invoke<JiraWorklog[]>('get_week_worklogs', { startDate: today, endDate: localDate(addDays(now, 1)), startedAfter: new Date(`${today}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${today}T00:00:00`).getTime() + 2 * 86_400_000 });
+        const { worklogs: entries, sync } = await invoke<WeekWorklogs>('get_week_worklogs', { startDate: today, endDate: localDate(addDays(now, 1)), startedAfter: new Date(`${today}T00:00:00`).getTime() - 86_400_000, startedBefore: new Date(`${today}T00:00:00`).getTime() + 2 * 86_400_000 });
+        // A reminder built from incomplete data could claim nothing is logged when it is, so stay quiet instead.
+        if (!sync.complete) return;
         logged = entries.reduce((sum, item) => sum + item.durationMinutes / 60, 0);
       } catch { return; }
       if (workdayHours - logged <= 0.01) return;
@@ -296,9 +314,10 @@ export default function App() {
     : syncState === 'error' ? 'Connect Jira in Settings to see your progress.'
     : pulseMissing <= 0.01 ? `Target reached with ${entriesText(pulseEntries)}${isPulseToday ? ' today' : ''}.`
     : pulseValue > todayValue ? 'This day hasn’t started yet.'
+    : isCalendarPartial ? 'Some Jira worklogs could not be loaded, so this day may already have more time.'
     : pulseTotal > 0 ? `${formatHours(pulseMissing)} to go · ${entriesText(pulseEntries)} logged${isPulseToday ? ' today' : ''}.`
     : isPulseToday ? 'Nothing logged yet today.' : `Nothing was logged on ${new Date(`${pulseValue}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long' })}.`;
-  const canLogPulse = syncState === 'ready' && !isCalendarLoading && pulseMissing > 0.01 && pulseValue <= todayValue;
+  const canLogPulse = syncState === 'ready' && !isCalendarLoading && !isCalendarPartial && pulseMissing > 0.01 && pulseValue <= todayValue;
   const movePeriod = (direction: -1 | 1) => setFocusDate(current => calendarMode === 'week' ? addDays(current, direction * 7) : new Date(current.getFullYear(), current.getMonth() + direction, 1));
   const openWeek = (date: Date) => { setFocusDate(date); setCalendarMode('week'); };
   const nextStartTime = (date: string) => {
@@ -444,29 +463,35 @@ export default function App() {
     } catch (error) { setSaveLogError(readableError(error)); }
     finally { setIsSavingLog(false); setSaveProgress(''); }
   };
+  const isTeamExport = exportScope === 'Team worklogs';
+  const exportSync = isTeamExport ? team.sync : calendarSync;
+  const isExportLoading = isTeamExport ? team.isLoading : isCalendarLoading;
+  const exportProblem = isTeamExport ? team.error : syncState === 'error' ? syncError : '';
+  const retryExport = isTeamExport ? team.refresh : reloadCalendar;
   const exportCalendar = async () => {
     const stamp = `${teamRange.start}_${localDate(addDays(new Date(`${teamRange.end}T12:00:00`), -1))}`;
-    const files = exportScope === 'Team worklogs'
+    const files = withCompleteness(isTeamExport
       ? teamExportFiles(teamRows, team.worklogs, teamDates, stamp, team.issues, ticketFields.fields)
-      : [{ name: `trackline-my-worklogs-${stamp}`, rows: [['Date', 'Start', 'Issue', 'Summary', 'Hours', 'Description'], ...periodLogs.filter(log => log.date >= teamRange.start && log.date < teamRange.end).sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start).map(log => [log.date, `${String(Math.floor(log.start)).padStart(2, '0')}:${String(Math.round((log.start % 1) * 60)).padStart(2, '0')}`, log.issue, log.title, Number(log.duration.toFixed(2)), log.description])] }];
+      : [{ name: `trackline-my-worklogs-${stamp}`, rows: [['Date', 'Start', 'Issue', 'Summary', 'Hours', 'Description'], ...periodLogs.filter(log => log.date >= teamRange.start && log.date < teamRange.end).sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start).map(log => [log.date, `${String(Math.floor(log.start)).padStart(2, '0')}:${String(Math.round((log.start % 1) * 60)).padStart(2, '0')}`, log.issue, log.title, Number(log.duration.toFixed(2)), log.description])] }], exportSync);
     setIsExporting(true); setExportError('');
     try {
       const paths: string[] = [];
       for (const file of files) paths.push(await invoke<string>('save_csv', { fileName: file.name, content: toCsv(file.rows) }));
       invoke('reveal_file', { path: paths[0] }).catch(() => undefined);
-      setModal(null); showToast(paths.length > 1 ? `Saved ${paths.length} CSV files to Downloads` : 'Saved CSV to Downloads');
+      const partialNote = exportSync.complete ? '' : ' (partial: some Jira worklogs were missing)';
+      setModal(null); showToast(paths.length > 1 ? `Saved ${paths.length} CSV files to Downloads${partialNote}` : `Saved CSV to Downloads${partialNote}`);
     } catch (error) { setExportError(readableError(error)); }
     finally { setIsExporting(false); }
   };
 
-  return <main className={isDark ? 'app dark' : 'app'}>
+  return <main className={isDark ? 'app dark' : 'app'} style={{ '--t': transparency / 100 } as React.CSSProperties}>
     <aside className="rail" aria-label="Primary navigation">
       <button className="brand" aria-label="Trackline home" onClick={() => setView('calendar')}><span className="brand-mark"><i /><i /><i /></span><span>TRACKLINE</span></button>
       <nav>
         <button className={`nav-item ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}><CalendarDays size={19} /><span>Calendar</span></button>
         <button className={`nav-item ${view === 'worklogs' ? 'active' : ''}`} onClick={() => setView('worklogs')}><TimerReset size={19} /><span>Worklogs</span></button>
         <button className="nav-item" onClick={openExport}><FileSpreadsheet size={19} /><span>Exports</span></button>
-        <button className="nav-item" onClick={() => showToast('Insights will be available once more Jira history is synced.')}><LayoutDashboard size={19} /><span>Insights</span></button>
+        <button className={`nav-item ${view === 'insights' ? 'active' : ''}`} onClick={() => setView('insights')}><LayoutDashboard size={19} /><span>Insights</span></button>
       </nav>
       <div className="rail-spacer" />
       <button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => setView('settings')}><Settings2 size={19} /><span>Settings</span></button>
@@ -475,9 +500,9 @@ export default function App() {
 
     <section className="workspace">
       <UpdateBanner updates={updates} />
-      {view === 'settings' ? <header className="topbar settings-topbar">
+      {view === 'settings' || view === 'insights' ? <header className="topbar settings-topbar">
         <button className="back-link" onClick={() => setView('calendar')}><ChevronLeft size={18} />Calendar</button>
-        <span className="settings-note"><Check size={14} />Changes apply immediately</span>
+        {view === 'settings' && <span className="settings-note"><Check size={14} />Changes apply immediately</span>}
       </header> : <header className="topbar">
           <div className="week-switcher period-bar"><button className="today-button" onClick={() => setFocusDate(new Date())}>Today</button><span className="period-nav"><button onClick={() => movePeriod(-1)} aria-label={`Previous ${calendarMode}`} title={`Previous ${calendarMode}`}><ChevronLeft size={17} /></button><button onClick={() => movePeriod(1)} aria-label={`Next ${calendarMode}`} title={`Next ${calendarMode}`}><ChevronRight size={17} /></button></span><div className="period-label">{calendarMode === 'month' ? <MonthPicker value={monthStart} label={periodLabel} onChange={setFocusDate} /> : <strong>{periodLabel}</strong>}<span aria-live="polite">{(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? 'Syncing Jira worklogs…' : `${view === 'worklogs' ? 'Team worklogs' : 'Jira worklog calendar'}${(view === 'worklogs' ? team.syncedAt : calendarSyncedAt) ? ` · synced ${(view === 'worklogs' ? team.syncedAt : calendarSyncedAt)!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`}</span></div></div>
         <div className="top-actions"><button className={`icon-button refresh-button${(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? ' is-spinning' : ''}`} onClick={refreshData} disabled={view === 'worklogs' ? team.isLoading : isCalendarLoading} aria-label="Refresh from Jira" title="Refresh from Jira (⌘R)"><RefreshCw size={18} /></button><button className="icon-button theme-toggle" onClick={() => setIsDark(value => !value)} aria-label="Toggle color theme">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button><button className="export-button" onClick={openExport}><Download size={17} />Export</button><button className="primary-button" onClick={() => openLogDialog()}><Plus size={18} />Log time</button></div>
@@ -548,15 +573,17 @@ export default function App() {
              <div className="settings-intro"><Palette size={18} aria-hidden="true" /><div><h2 id="settings-appearance">Appearance</h2><p>Choose the working surface that feels most comfortable in your environment.</p></div></div>
              <div className="setting-control">
                <div className="segmented" role="group" aria-label="Color theme"><button aria-pressed={!isDark} onClick={() => setIsDark(false)}><Sun size={15} aria-hidden="true" />Light</button><button aria-pressed={isDark} onClick={() => setIsDark(true)}><Moon size={15} aria-hidden="true" />Dark</button></div>
+               {isDark && document.documentElement.classList.contains('native-glass') && <label className="field transparency-field"><span className="field-label"><span>Window transparency</span><output className="transparency-value">{transparency}%</output></span><input type="range" min={0} max={100} step={5} value={transparency} onChange={event => setTransparency(Number(event.target.value))} aria-label="Window transparency" /><p className="setting-hint">Lower values are darker and more solid; higher values let your desktop show through.</p></label>}
              </div>
            </section>
          </div>
-       </section> : view === 'worklogs' ? <TeamWorklogs scope={teamScope} setScope={setTeamScope} worklogs={team.worklogs} rows={teamRows} isLoading={team.isLoading} error={team.error} onRefresh={team.refresh}
+       </section> : view === 'insights' ? <Insights workdayHours={workdayHours} onOpenDay={date => { setFocusDate(new Date(`${date}T12:00:00`)); setView('calendar'); }} /> : view === 'worklogs' ? <TeamWorklogs scope={teamScope} setScope={setTeamScope} worklogs={team.worklogs} rows={teamRows} sync={team.sync} isLoading={team.isLoading} error={team.error} onRefresh={team.refresh}
         periodDays={teamPeriodDays} periodLabel={periodLabel} calendarMode={calendarMode} onModeChange={setCalendarMode} workdayHours={workdayHours} todayValue={todayValue}
         focusIncomplete={focusIncomplete} onFocusChange={setFocusIncomplete} hideWeekends={hideWeekends} onHideWeekendsChange={setHideWeekends}
         issues={team.issues} fields={ticketFields.fields} /> : <div className="content">
         <section className="calendar-panel" aria-labelledby="calendar-title">
-             <div className="calendar-heading"><div><h1 id="calendar-title">{calendarMode === 'week' ? 'Your workweek' : 'Your month'}</h1><p>{isCalendarLoading ? 'Loading your Jira worklogs…' : syncState === 'error' ? syncError : periodTotal ? `${formatHours(periodTotal)} logged${calendarMode === 'month' ? ` across ${loggedDays} ${loggedDays === 1 ? 'day' : 'days'}` : ''} · ${formatHours(Math.max(0, periodTarget - periodTotal))} remaining` : `No Jira time logged for this ${calendarMode}.`}</p></div><div className="calendar-controls"><div className="calendar-options"><label className="calendar-option"><button type="button" role="switch" aria-checked={focusIncomplete} className={`toggle${focusIncomplete ? ' on' : ''}`} onClick={() => setFocusIncomplete(value => !value)}><i /></button>Focus on incomplete days{showFocus && <b aria-label={`${incompleteCount} incomplete ${incompleteCount === 1 ? 'day' : 'days'}`}>{incompleteCount}</b>}</label><label className="calendar-option"><button type="button" role="switch" aria-checked={hideWeekends} className={`toggle${hideWeekends ? ' on' : ''}`} onClick={() => setHideWeekends(value => !value)}><i /></button>Hide weekends</label></div><div className="view-tabs"><button className={calendarMode === 'week' ? 'selected' : ''} aria-pressed={calendarMode === 'week'} onClick={() => setCalendarMode('week')}>Week</button><button className={calendarMode === 'month' ? 'selected' : ''} aria-pressed={calendarMode === 'month'} onClick={() => setCalendarMode('month')}>Month</button></div></div></div>
+             <div className="calendar-heading"><div><h1 id="calendar-title">{calendarMode === 'week' ? 'Your workweek' : 'Your month'}</h1><p>{calendarSummary}</p></div><div className="calendar-controls"><div className="calendar-options"><label className="calendar-option"><button type="button" role="switch" aria-checked={focusIncomplete} className={`toggle${focusIncomplete ? ' on' : ''}`} onClick={() => setFocusIncomplete(value => !value)}><i /></button>Focus on incomplete days{showFocus && <b aria-label={`${incompleteCount} incomplete ${incompleteCount === 1 ? 'day' : 'days'}`}>{incompleteCount}</b>}</label><label className="calendar-option"><button type="button" role="switch" aria-checked={hideWeekends} className={`toggle${hideWeekends ? ' on' : ''}`} onClick={() => setHideWeekends(value => !value)}><i /></button>Hide weekends</label></div><div className="view-tabs"><button className={calendarMode === 'week' ? 'selected' : ''} aria-pressed={calendarMode === 'week'} onClick={() => setCalendarMode('week')}>Week</button><button className={calendarMode === 'month' ? 'selected' : ''} aria-pressed={calendarMode === 'month'} onClick={() => setCalendarMode('month')}>Month</button></div></div></div>
+          {isCalendarPartial && <SyncNotice sync={calendarSync} onRetry={reloadCalendar} />}
           <div className="dispatch-legend"><span><i className="route-dot teal" />Logged</span><span><i className="route-dot blue" />Review / meeting</span><span><i className="route-dot coral" />Needs attention</span><button onClick={() => showToast('Issue filters are ready for your Jira data.')}><CircleHelp size={15} />How totals work</button></div>
           {calendarMode === 'week' ? <div className="calendar-shell" style={{ gridTemplateRows: `80px ${hours.length * hourHeight}px`, '--day-count': days.length } as React.CSSProperties}>
             <div className="day-header time-column" />
@@ -566,7 +593,7 @@ export default function App() {
               {days.map(day => <div className={`day-lane${day.value === todayValue ? ' today-lane' : ''}${day.weekend ? ' weekend' : ''}${focusClass(missingHoursFor(new Date(`${day.value}T12:00:00`)))}`} key={day.value} onMouseMove={event => { if (isOnWorklog(event)) { if (hoverSlot) setHoverSlot(null); return; } const start = slotFromPointer(event); if (hoverSlot?.date !== day.value || hoverSlot.start !== start) setHoverSlot({ date: day.value, start }); }} onMouseLeave={() => setHoverSlot(null)} onClick={event => { if (isOnWorklog(event)) return; setHoverSlot(null); openLogDialog({ date: day.value, time: slotTime(slotFromPointer(event)) }); }}>{hoverSlot?.date === day.value && <div className="slot-preview" aria-hidden="true" style={{ top: `${(hoverSlot.start - firstHour) * hourHeight}px`, height: `${Math.max(hourHeight - 6, 30)}px` }}><Plus size={12} />{slotTime(hoverSlot.start)}</div>}{hours.map(hour => <div className="hour-line" style={{ height: hourHeight }} key={hour} />)}{placeDayWorklogs(logs.filter(log => log.date === day.value), 42 / hourHeight).map(({ log, column, columns }) => <button className={`worklog ${log.accent}`} onClick={() => setSelected(log)} key={log.id} title={`${log.issue} · ${log.title} · ${formatHours(log.duration)}`} style={{ top: `${(log.start - firstHour) * hourHeight}px`, height: `${Math.max((Math.min(log.start + log.duration, lastHour) - log.start) * hourHeight - 6, 42)}px`, left: `calc(${column * 100 / columns}% + 4px)`, width: `calc(${100 / columns}% - 8px)`, right: 'auto' }}><b>{log.issue}</b><span>{log.title}</span><em>{formatHours(log.duration)}</em></button>)}</div>)}
               {days.some(day => day.value === todayValue) && nowHours >= firstHour && nowHours <= lastHour && <div className="now-line" style={{ top: `${(nowHours - firstHour) * hourHeight}px` }}><span>{nowLabel}</span></div>}
               {isCalendarLoading && <div className="calendar-loading"><span />Loading Jira worklogs</div>}
-               {!isCalendarLoading && syncState === 'ready' && !periodLogs.length && <div className="empty-week"><strong>No worklogs this week</strong><span>Your Jira connection is active. Browse to a previous week to see earlier time.</span><button onClick={() => movePeriod(-1)}>Show previous week</button></div>}
+               {!isCalendarLoading && syncState === 'ready' && calendarSync.complete && !periodLogs.length && <div className="empty-week"><strong>No worklogs this week</strong><span>Your Jira connection is active. Browse to a previous week to see earlier time.</span><button onClick={() => movePeriod(-1)}>Show previous week</button></div>}
             </div>
           </div> : <div className="month-shell">
             <div className="month-grid" style={{ '--day-count': visibleWeekdays.length } as React.CSSProperties} aria-label={`${periodLabel} worklog calendar`}>
@@ -584,7 +611,7 @@ export default function App() {
               })}
             </div>
             {isCalendarLoading && <div className="calendar-loading"><span />Loading Jira worklogs</div>}
-            {!isCalendarLoading && syncState === 'ready' && !periodLogs.length && <div className="empty-week"><strong>No worklogs this month</strong><span>Your Jira connection is active. Browse to a previous month to see earlier time.</span><button onClick={() => movePeriod(-1)}>Show previous month</button></div>}
+            {!isCalendarLoading && syncState === 'ready' && calendarSync.complete && !periodLogs.length && <div className="empty-week"><strong>No worklogs this month</strong><span>Your Jira connection is active. Browse to a previous month to see earlier time.</span><button onClick={() => movePeriod(-1)}>Show previous month</button></div>}
           </div>}
         </section>
 
@@ -594,7 +621,7 @@ export default function App() {
           <p className="pulse-copy" aria-live="polite">{pulseCopy}</p>
           {canLogPulse && <button className="pulse-action" onClick={() => openLogDialog({ date: pulseValue, time: nextStartTime(pulseValue) })}><Plus size={14} />Log {formatHours(pulseMissing)} for {isPulseToday ? 'today' : new Date(`${pulseValue}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long' })}</button>}
           <div className="reminder"><div className="reminder-icon"><Bell size={18} /></div><div><strong>Daily reminder</strong><p>{reminderEnabled ? `${new Date(`1970-01-01T${reminderTime}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · weekdays, local time` : 'Off'}</p></div><button className={`toggle ${reminderEnabled ? 'on' : ''}`} onClick={() => setReminderEnabled(value => !value)} role="switch" aria-checked={reminderEnabled} aria-label="Daily reminder"><i /></button></div>
-          {syncState === 'ready' && !isCalendarLoading && <div className="side-section">
+          {syncState === 'ready' && !isCalendarLoading && calendarSync.complete && <div className="side-section">
             <div className="section-heading"><h3>Needs attention</h3><span className="section-meta">{calendarMode === 'week' ? 'This week' : 'This month'}</span></div>
             {attentionDays.length ? <>{attentionDays.slice(0, 5).map(({ date, missing }) => <div className="attention-row" key={localDate(date)}>
               <span className="issue-glyph coral" />
@@ -643,7 +670,7 @@ export default function App() {
     {modal === 'export' && <div className="modal-backdrop"><section className="dialog export-dialog"><button className="close" onClick={() => setModal(null)} aria-label="Close"><X size={18} /></button><span className="dialog-label">EXPORT</span><h2>Download logged time</h2><p>CSV files for {periodLabel} are saved to your Downloads folder.</p><div className="scope-options">{[
       { id: 'My calendar', tag: 'ME', text: `Your worklogs for this ${calendarMode}`, disabled: false },
       { id: 'Team worklogs', tag: 'TEAM', text: hasTeamScope ? `${teamScopeText} · per-day summary, every worklog, and per-ticket totals (3 files)` : 'Choose projects or people on the Worklogs page first', disabled: !hasTeamScope },
-    ].map(option => <button className={exportScope === option.id ? 'scope-selected' : ''} disabled={option.disabled} onClick={() => setExportScope(option.id)} key={option.id}><span>{option.tag}</span><div><strong>{option.id}</strong><small>{option.text}</small></div><i>{exportScope === option.id && <Check size={15} />}</i></button>)}</div>{exportScope === 'Team worklogs' && team.error && <p className="save-error" role="alert">{team.error}</p>}{exportError && <p className="save-error" role="alert">{exportError}</p>}<footer><button className="cancel" onClick={() => setModal(null)}>Cancel</button><button className="primary-button" onClick={exportCalendar} disabled={isExporting || (exportScope === 'Team worklogs' && (team.isLoading || !!team.error))}>{isExporting || (exportScope === 'Team worklogs' && team.isLoading) ? <span className="mini-spinner inline" aria-hidden="true" /> : <Download size={17} />}{exportScope === 'Team worklogs' && team.isLoading ? 'Loading team worklogs…' : isExporting ? 'Saving…' : 'Download CSV'}</button></footer></section></div>}
+    ].map(option => <button className={exportScope === option.id ? 'scope-selected' : ''} disabled={option.disabled} onClick={() => setExportScope(option.id)} key={option.id}><span>{option.tag}</span><div><strong>{option.id}</strong><small>{option.text}</small></div><i>{exportScope === option.id && <Check size={15} />}</i></button>)}</div>{exportProblem && !isExportLoading && <p className="save-error" role="alert">{exportProblem}</p>}{!isExportLoading && !exportProblem && <SyncNotice sync={exportSync} onRetry={retryExport} footnote="You can still download what loaded. The file will be marked as partial." />}{exportError && <p className="save-error" role="alert">{exportError}</p>}<footer><button className="cancel" onClick={() => setModal(null)}>Cancel</button><button className="primary-button" onClick={exportCalendar} disabled={isExporting || isExportLoading || !!exportProblem}>{isExporting || isExportLoading ? <span className="mini-spinner inline" aria-hidden="true" /> : <Download size={17} />}{isExportLoading ? (isTeamExport ? 'Loading team worklogs…' : 'Loading your worklogs…') : isExporting ? 'Saving…' : exportSync.complete ? 'Download CSV' : 'Download partial CSV'}</button></footer></section></div>}
     {toast && <div className="toast"><Check size={17} />{toast}</div>}
   </main>;
 }

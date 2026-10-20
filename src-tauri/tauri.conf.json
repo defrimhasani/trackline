@@ -17,9 +17,11 @@
         "height": 900,
         "minWidth": 760,
         "minHeight": 560,
-        "resizable": true
+        "resizable": true,
+        "transparent": true
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }

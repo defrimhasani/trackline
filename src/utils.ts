@@ -12,6 +12,17 @@ export const daysBetween = (start: string, end: string) => {
 };
 export const toCsv = (rows: (string | number)[][]) => `\uFEFF${rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n')}`;
 
+/** What the Jira loaders report alongside their data: `complete` is false when anything may be missing, and `problems` says why in plain words. */
+export type SyncStatus = { complete: boolean; problems: string[] };
+export const completeSync: SyncStatus = { complete: true, problems: [] };
+
+/** Marks files built from an incomplete load, in the name and at the top of the file itself, so nobody mistakes them for a full export. */
+export const withCompleteness = <File extends { name: string; rows: (string | number)[][] }>(files: File[], sync: SyncStatus): File[] => sync.complete ? files : files.map(file => ({
+  ...file,
+  name: `${file.name}-partial`,
+  rows: [['PARTIAL EXPORT: some Jira worklogs are missing from this file.'], ...sync.problems.map(problem => [problem]), [''], ...file.rows],
+}));
+
 /**
  * Parses a Jira-style duration into minutes: "30m", "2h", "1h 30m", "1h30m", "1.5h", "1:30",
  * "1d" (one workday) or a plain number of hours ("1.5"). Returns null when the text isn't a duration.

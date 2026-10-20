@@ -1,13 +1,22 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
+use std::{collections::BTreeMap, fs, path::PathBuf, process::Command, sync::OnceLock, time::Duration};
+
+mod sync;
+#[cfg(test)]
+mod testing;
+mod worklogs;
 
 const KEYCHAIN_SERVICE: &str = "com.trackline.timesheet.jira";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct JiraWorklog { id: String, date: String, started_at: String, issue: String, summary: String, duration_minutes: u64, description: String }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WeekWorklogs { worklogs: Vec<JiraWorklog>, sync: sync::SyncStatus }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,31 +101,48 @@ fn normalized_site(site: &str) -> Result<String, String> {
   Ok(url.as_str().trim_end_matches('/').to_owned())
 }
 
-fn jira_send(request: reqwest::blocking::RequestBuilder, email: &str, token: &str) -> Result<Value, String> {
+/// Sends one request and reports what went wrong in a way retries can act on.
+fn jira_attempt(request: reqwest::blocking::RequestBuilder, email: &str, token: &str) -> Result<Value, sync::Failure> {
+  use sync::Failure::{Fatal, Network};
   let (client, request) = request.build_split();
-  let mut request = request.map_err(|_| "Trackline could not prepare the Jira request.".to_string())?;
+  let mut request = request.map_err(|_| Fatal("Trackline could not prepare the Jira request.".to_string()))?;
   // Credentials are only ever sent over HTTPS, whatever address is stored.
-  if request.url().scheme() != "https" { return Err("Trackline only sends your Jira credentials over HTTPS. Reconnect with an https:// site address in Settings.".to_string()); }
+  if request.url().scheme() != "https" { return Err(Fatal("Trackline only sends your Jira credentials over HTTPS. Reconnect with an https:// site address in Settings.".to_string())); }
   let credentials = STANDARD.encode(format!("{email}:{token}"));
-  let authorization = reqwest::header::HeaderValue::from_str(&format!("Basic {credentials}")).map_err(|_| "Your Jira credentials contain characters that can't be sent.".to_string())?;
+  let authorization = reqwest::header::HeaderValue::from_str(&format!("Basic {credentials}")).map_err(|_| Fatal("Your Jira credentials contain characters that can't be sent.".to_string()))?;
   request.headers_mut().insert(reqwest::header::AUTHORIZATION, authorization);
   let response = client.execute(request)
-    .map_err(|_| "Trackline could not reach Jira Cloud.".to_string())?;
+    .map_err(|_| Network("Trackline could not reach Jira Cloud.".to_string()))?;
   let status = response.status();
-  if status == reqwest::StatusCode::UNAUTHORIZED { return Err("Jira rejected the site URL, email address, or API token.".to_string()); }
   if !status.is_success() {
+    let retry_after = response.headers().get(reqwest::header::RETRY_AFTER).and_then(|value| value.to_str().ok()).map(str::to_owned);
     let body = response.json::<Value>().unwrap_or(Value::Null);
     let detail = body["errorMessages"].as_array().and_then(|messages| messages.first()).and_then(Value::as_str)
       .or_else(|| body["errors"].as_object().and_then(|errors| errors.values().next()).and_then(Value::as_str));
-    return Err(match (detail, status) {
-      (Some(detail), _) => format!("Jira: {detail}"),
-      (None, reqwest::StatusCode::FORBIDDEN) => "Jira denied this action. Check your permissions for this issue.".to_string(),
-      (None, _) => format!("Jira could not complete the request ({}).", status.as_u16()),
-    });
+    return Err(sync::classify_status(status.as_u16(), retry_after.as_deref(), detail));
   }
-  let text = response.text().map_err(|_| "Jira returned an unreadable response.".to_string())?;
+  let text = response.text().map_err(|_| Network("Jira returned an unreadable response.".to_string()))?;
   if text.trim().is_empty() { return Ok(Value::Null); }
-  serde_json::from_str(&text).map_err(|_| "Jira returned an unreadable response.".to_string())
+  serde_json::from_str(&text).map_err(|_| Fatal("Jira returned an unreadable response.".to_string()))
+}
+
+/// A single attempt, never repeated. Writes use this directly so that a worklog can't be created twice.
+fn jira_send(request: reqwest::blocking::RequestBuilder, email: &str, token: &str) -> Result<Value, String> {
+  jira_attempt(request, email, token).map_err(|failure| failure.message().to_owned())
+}
+
+/// One client for every worklog read, so the workers share connections and every request has a time limit.
+fn read_client() -> &'static reqwest::blocking::Client {
+  static CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
+  CLIENT.get_or_init(|| reqwest::blocking::Client::builder().timeout(Duration::from_secs(30)).connect_timeout(Duration::from_secs(10)).build().unwrap_or_default())
+}
+
+struct HttpTransport { site: String, email: String, token: String }
+
+impl sync::Transport for HttpTransport {
+  fn get_once(&self, path: &str) -> Result<Value, sync::Failure> {
+    jira_attempt(read_client().get(format!("{}{path}", self.site)), &self.email, &self.token)
+  }
 }
 
 fn jira_get(url: &str, email: &str, token: &str) -> Result<Value, String> {
@@ -216,20 +242,6 @@ async fn search_issues(query: String) -> Result<Vec<JiraIssue>, String> {
   }).await
 }
 
-#[allow(clippy::too_many_arguments)]
-fn worklogs_for_issue(site: String, email: String, token: String, account_id: String, key: String, summary: String, start_date: String, end_date: String, started_after: i64, started_before: i64) -> Result<Vec<JiraWorklog>, String> {
-  let logs = jira_get(&format!("{site}/rest/api/3/issue/{key}/worklog?maxResults=5000&startedAfter={started_after}&startedBefore={started_before}"), &email, &token)?;
-  let mut worklogs = Vec::new();
-  for log in logs["worklogs"].as_array().into_iter().flatten() {
-    if log["author"]["accountId"].as_str() != Some(account_id.as_str()) { continue; }
-    let started = log["started"].as_str().unwrap_or_default(); let date = &started[..started.len().min(10)];
-    if date < start_date.as_str() || date >= end_date.as_str() { continue; }
-    let description = log["comment"]["content"].as_array().and_then(|c| c.first()).and_then(|p| p["content"].as_array()).and_then(|c| c.first()).and_then(|t| t["text"].as_str()).unwrap_or("").to_owned();
-    worklogs.push(JiraWorklog { id: log["id"].as_str().unwrap_or_default().to_owned(), date: date.to_owned(), started_at: started.to_owned(), issue: key.to_owned(), summary: summary.to_owned(), duration_minutes: log["timeSpentSeconds"].as_u64().unwrap_or(0) / 60, description });
-  }
-  Ok(worklogs)
-}
-
 #[tauri::command]
 fn open_api_token_page() -> Result<(), String> {
   Command::new("open").arg("https://id.atlassian.com/manage-profile/security/api-tokens").spawn().map_err(|_| "Trackline could not open the Atlassian API-token page.".to_string())?;
@@ -261,31 +273,21 @@ async fn jira_connection() -> Result<JiraConnection, String> {
 }
 
 #[tauri::command]
-async fn get_week_worklogs(start_date: String, end_date: String, started_after: i64, started_before: i64) -> Result<Vec<JiraWorklog>, String> {
-  in_background(move || load_week_worklogs(start_date, end_date, started_after, started_before)).await
+async fn get_week_worklogs(start_date: String, end_date: String, started_after: i64, started_before: i64, ticket: Option<sync::LoadTicket>) -> Result<WeekWorklogs, String> {
+  in_background(move || load_week_worklogs(start_date, end_date, started_after, started_before, ticket)).await
 }
 
-fn load_week_worklogs(start_date: String, end_date: String, started_after: i64, started_before: i64) -> Result<Vec<JiraWorklog>, String> {
-  let site = get_secret("site-url")?; let email = get_secret("email")?; let token = get_secret("api-token")?; let account_id = get_secret("account-id")?;
-  let jql = url::form_urlencoded::byte_serialize(format!("worklogAuthor = currentUser() AND worklogDate >= \"{start_date}\" AND worklogDate < \"{end_date}\"").as_bytes()).collect::<String>();
-  let issues = jira_get(&format!("{site}/rest/api/3/search/jql?jql={jql}&fields=summary&maxResults=100"), &email, &token)?;
-  let issue_details: Vec<(String, String)> = issues["issues"].as_array().into_iter().flatten().map(|issue| (
-    issue["key"].as_str().unwrap_or_default().to_owned(), issue["fields"]["summary"].as_str().unwrap_or("Untitled Jira work").to_owned()
-  )).collect();
-  let mut worklogs = Vec::new();
-  for batch in issue_details.chunks(8) {
-    let mut handles = Vec::new();
-    for (key, summary) in batch {
-      handles.push(std::thread::spawn({
-        let (site, email, token, account_id, start_date, end_date, key, summary) = (site.clone(), email.clone(), token.clone(), account_id.clone(), start_date.clone(), end_date.clone(), key.clone(), summary.clone());
-        move || worklogs_for_issue(site, email, token, account_id, key, summary, start_date, end_date, started_after, started_before)
-      }));
-    }
-    for handle in handles {
-      worklogs.extend(handle.join().map_err(|_| "Trackline could not load Jira worklogs.".to_string())??);
-    }
-  }
-  worklogs.sort_by(|a, b| a.started_at.cmp(&b.started_at)); Ok(worklogs)
+/// Opens a read-only, retrying connection to Jira for one load. A newer load with the same ticket channel cancels this one.
+fn start_load(ticket: Option<&sync::LoadTicket>) -> Result<(sync::Retrying<HttpTransport, sync::SystemClock>, sync::CancelToken), String> {
+  let cancel = sync::LOADS.begin(ticket);
+  let transport = HttpTransport { site: get_secret("site-url")?, email: get_secret("email")?, token: get_secret("api-token")? };
+  Ok((sync::Retrying::new(transport, sync::SystemClock::default(), cancel.clone()), cancel))
+}
+
+fn load_week_worklogs(start_date: String, end_date: String, started_after: i64, started_before: i64, ticket: Option<sync::LoadTicket>) -> Result<WeekWorklogs, String> {
+  let (api, cancel) = start_load(ticket.as_ref())?;
+  let query = worklogs::WeekQuery { account_id: get_secret("account-id")?, start_date, end_date, started_after, started_before };
+  worklogs::week(&api, &cancel, &query).map_err(|failure| failure.message().to_owned())
 }
 
 #[derive(Serialize)]
@@ -336,25 +338,6 @@ async fn search_users(query: String) -> Result<Vec<JiraUser>, String> {
   }).await
 }
 
-#[allow(clippy::too_many_arguments)]
-fn team_worklogs_for_issue(site: &str, email: &str, token: &str, key: &str, summary: &str, in_scope_project: bool, account_ids: &[String], start_date: &str, end_date: &str, started_after: i64, started_before: i64) -> Result<Vec<TeamWorklog>, String> {
-  let logs = jira_get(&format!("{site}/rest/api/3/issue/{key}/worklog?maxResults=5000&startedAfter={started_after}&startedBefore={started_before}"), email, token)?;
-  Ok(logs["worklogs"].as_array().into_iter().flatten().filter_map(|log| {
-    let author_id = log["author"]["accountId"].as_str()?;
-    if !in_scope_project && !account_ids.iter().any(|id| id == author_id) { return None; }
-    let started = log["started"].as_str().unwrap_or_default();
-    let date = &started[..started.len().min(10)];
-    if date < start_date || date >= end_date { return None; }
-    Some(TeamWorklog {
-      id: log["id"].as_str().unwrap_or_default().to_owned(), date: date.to_owned(), started_at: started.to_owned(),
-      issue: key.to_owned(), summary: summary.to_owned(), duration_minutes: log["timeSpentSeconds"].as_u64().unwrap_or(0) / 60,
-      description: comment_text(&log["comment"]), author_id: author_id.to_owned(),
-      author_name: log["author"]["displayName"].as_str().unwrap_or("Jira user").to_owned(),
-      author_avatar: log["author"]["avatarUrls"]["24x24"].as_str().map(str::to_owned),
-    })
-  }).collect())
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TeamIssue {
@@ -366,7 +349,7 @@ struct TeamIssue {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct TeamData { worklogs: Vec<TeamWorklog>, issues: Vec<TeamIssue> }
+struct TeamData { worklogs: Vec<TeamWorklog>, issues: Vec<TeamIssue>, sync: sync::SyncStatus }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -413,64 +396,20 @@ async fn list_fields() -> Result<Vec<JiraField>, String> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, field_ids: Vec<String>) -> Result<TeamData, String> {
+fn load_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, field_ids: Vec<String>, ticket: Option<sync::LoadTicket>) -> Result<TeamData, String> {
   if project_keys.iter().any(|key| !is_project_key(key)) || account_ids.iter().any(|id| !is_account_id(id)) { return Err("The team scope contains an invalid project or person.".to_string()); }
   let field_ids: Vec<String> = field_ids.into_iter().filter(|id| is_field_id(id))
     .fold(Vec::new(), |mut list, id| { if !list.contains(&id) && list.len() < 20 { list.push(id); } list });
-  if project_keys.is_empty() && account_ids.is_empty() { return Ok(TeamData { worklogs: Vec::new(), issues: Vec::new() }); }
-  let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
-  let mut scope = Vec::new();
-  if !project_keys.is_empty() { scope.push(format!("project in ({})", project_keys.join(", "))); }
-  if !account_ids.is_empty() { scope.push(format!("worklogAuthor in ({})", account_ids.iter().map(|id| format!("\"{id}\"")).collect::<Vec<_>>().join(", "))); }
-  let jql = encode(&format!("({}) AND worklogDate >= \"{start_date}\" AND worklogDate < \"{end_date}\"", scope.join(" OR ")));
-  let mut requested_fields = vec!["summary", "project", "issuetype", "status", "parent", "timeoriginalestimate", "timespent"];
-  requested_fields.extend(field_ids.iter().map(String::as_str));
-  let requested_fields = requested_fields.join(",");
-  let mut issues: Vec<(String, String, bool)> = Vec::new();
-  let mut details: Vec<TeamIssue> = Vec::new();
-  let mut page_token: Option<String> = None;
-  loop {
-    let page_query = page_token.as_deref().map(|value| format!("&nextPageToken={}", encode(value))).unwrap_or_default();
-    let page = jira_get(&format!("{site}/rest/api/3/search/jql?jql={jql}&fields={requested_fields}&maxResults=100{page_query}"), &email, &token)?;
-    for issue in page["issues"].as_array().into_iter().flatten() {
-      let fields = &issue["fields"];
-      let key = issue["key"].as_str().unwrap_or_default().to_owned();
-      let summary = fields["summary"].as_str().unwrap_or("Untitled Jira work").to_owned();
-      let project = fields["project"]["key"].as_str().unwrap_or_default().to_owned();
-      issues.push((key.clone(), summary.clone(), project_keys.contains(&project)));
-      details.push(TeamIssue {
-        key, summary, project,
-        issue_type: fields["issuetype"]["name"].as_str().map(str::to_owned),
-        issue_type_icon: fields["issuetype"]["iconUrl"].as_str().map(str::to_owned),
-        status: fields["status"]["name"].as_str().map(str::to_owned),
-        status_category: fields["status"]["statusCategory"]["key"].as_str().map(str::to_owned),
-        parent_key: fields["parent"]["key"].as_str().map(str::to_owned),
-        parent_summary: fields["parent"]["fields"]["summary"].as_str().map(str::to_owned),
-        original_estimate_seconds: fields["timeoriginalestimate"].as_u64(),
-        time_spent_seconds: fields["timespent"].as_u64(),
-        field_values: field_ids.iter().filter_map(|id| field_text(&fields[id.as_str()]).map(|text| (id.clone(), text))).collect(),
-      });
-    }
-    page_token = page["nextPageToken"].as_str().map(str::to_owned);
-    if page["isLast"].as_bool().unwrap_or(true) || page_token.is_none() || issues.len() >= 2000 { break; }
-  }
-  let mut worklogs = Vec::new();
-  for batch in issues.chunks(8) {
-    let handles: Vec<_> = batch.iter().cloned().map(|(key, summary, in_scope_project)| {
-      let (site, email, token, account_ids, start_date, end_date) = (site.clone(), email.clone(), token.clone(), account_ids.clone(), start_date.clone(), end_date.clone());
-      std::thread::spawn(move || team_worklogs_for_issue(&site, &email, &token, &key, &summary, in_scope_project, &account_ids, &start_date, &end_date, started_after, started_before))
-    }).collect();
-    for handle in handles { worklogs.extend(handle.join().map_err(|_| "Trackline could not load team worklogs.".to_string())??); }
-  }
-  worklogs.sort_by(|a, b| a.started_at.cmp(&b.started_at));
-  details.retain(|issue| worklogs.iter().any(|log| log.issue == issue.key));
-  Ok(TeamData { worklogs, issues: details })
+  if project_keys.is_empty() && account_ids.is_empty() { return Ok(TeamData { worklogs: Vec::new(), issues: Vec::new(), sync: sync::SyncStatus::complete() }); }
+  let (api, cancel) = start_load(ticket.as_ref())?;
+  let query = worklogs::TeamQuery { project_keys, account_ids, field_ids, start_date, end_date, started_after, started_before };
+  worklogs::team(&api, &cancel, &query).map_err(|failure| failure.message().to_owned())
 }
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
-async fn get_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, field_ids: Option<Vec<String>>) -> Result<TeamData, String> {
-  in_background(move || load_team_worklogs(project_keys, account_ids, start_date, end_date, started_after, started_before, field_ids.unwrap_or_default())).await
+async fn get_team_worklogs(project_keys: Vec<String>, account_ids: Vec<String>, start_date: String, end_date: String, started_after: i64, started_before: i64, field_ids: Option<Vec<String>>, ticket: Option<sync::LoadTicket>) -> Result<TeamData, String> {
+  in_background(move || load_team_worklogs(project_keys, account_ids, start_date, end_date, started_after, started_before, field_ids.unwrap_or_default(), ticket)).await
 }
 
 #[tauri::command]
@@ -510,4 +449,4 @@ async fn open_issue(issue_key: String) -> Result<(), String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() { tauri::Builder::default().plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
+pub fn run() { tauri::Builder::default().setup(|_app| { #[cfg(target_os = "macos")] { use tauri::Manager; if let Some(window) = _app.get_webview_window("main") { let _ = window_vibrancy::apply_vibrancy(&window, window_vibrancy::NSVisualEffectMaterial::HudWindow, Some(window_vibrancy::NSVisualEffectState::Active), Some(10.0)); } } Ok(()) }).plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
