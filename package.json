@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
-    "@tauri-apps/plugin-notification": "^2.7.0",
+    "@tauri-apps/plugin-notification": "~2.5.0",
     "@tauri-apps/plugin-process": "^2.4.0",
-    "@tauri-apps/plugin-updater": "^2.14.0",
+    "@tauri-apps/plugin-updater": "~2.13.0",
     "lucide-react": "^1.58.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
