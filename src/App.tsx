@@ -7,9 +7,9 @@ import { MonthPicker } from './month-picker';
 import { UpdateBanner, UpdateSettings, useAppUpdates } from './updates';
 import { SyncNotice, loadTicket } from './sync';
 import { Insights } from './insights';
-import { addDays, completeSync, daysBetween, formatDuration, formatHours, localDate, parseDuration, readableError, toCsv, weekdayLabels, withCompleteness, type SyncStatus } from './utils';
+import { addDays, completeSync, daysBetween, formatDuration, formatHours, isWeekend, localDate, parseDuration, readableError, toCsv, weekdayLabels, withCompleteness, type SyncStatus } from './utils';
 import {
-  Bell, BellRing, Bookmark, Bug, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, CircleHelp, Clock3,
+  Bell, BellRing, Bookmark, Bug, CalendarCheck, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, CircleHelp, Clock3,
   Download, ExternalLink, FileSpreadsheet, LayoutDashboard, ListTree, Moon, Pencil, Plus, Trash,
   KeyRound, Palette, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, SquareCheck, Sun, TimerReset, UsersRound, X, Zap,
   type LucideIcon,
@@ -417,7 +417,13 @@ export default function App() {
     const friday = localDate(addDays(startOfWeek(new Date(`${current.date}T12:00:00`)), 4));
     return { ...current, repeat: true, until: current.until && current.until >= current.date ? current.until : friday >= current.date ? friday : current.date };
   });
-  const durationPresets = [...new Set(['15m', '30m', '1h', '2h', '4h', formatDuration(Math.round(workdayHours * 60))])];
+  const workdayMinutes = Math.round(workdayHours * 60);
+  // The worklog being edited is left out, because its duration is what this chip would replace.
+  const otherDayMinutes = logs.filter(log => log.date === entry.date && log.id !== editingLog?.id).reduce((sum, log) => sum + Math.round(log.duration * 60), 0);
+  const isDayTotalKnown = syncState === 'ready' && !isCalendarLoading && calendarSync.complete && entry.date >= range.start && entry.date < range.end;
+  // Hidden whenever the day's total is a guess or the day has no target: unloaded or incomplete data, weekends, and repeating entries.
+  const fillDayMinutes = isDayTotalKnown && !entry.repeat && !isWeekend(new Date(`${entry.date}T12:00:00`)) ? Math.max(0, workdayMinutes - otherDayMinutes) : 0;
+  const durationPresets = [...new Set(['15m', '30m', '1h', '2h', '4h', formatDuration(workdayMinutes)])].filter(preset => parseDuration(preset, workdayHours) !== fillDayMinutes);
   const jiraStarted = (date: string, time: string) => {
     const offsetMinutes = -new Date(`${date}T${time}:00`).getTimezoneOffset();
     const offset = `${offsetMinutes >= 0 ? '+' : '-'}${String(Math.floor(Math.abs(offsetMinutes) / 60)).padStart(2, '0')}${String(Math.abs(offsetMinutes) % 60).padStart(2, '0')}`;
@@ -657,7 +663,7 @@ export default function App() {
         {hasIssueList && !flatIssueOptions.length && <p className="issue-status">{issueQuery.trim().length >= 2 ? (isSearching ? 'Searching Jira…' : 'No matching issues. Try a different word or the full issue key.') : issueQuery.trim() ? 'No matches in this list. Keep typing to search all of Jira.' : 'No issues in this list yet.'}</p>}
       </div>
     </div>}{issueError && <p className="issue-error" role="alert">{issueError}</p>}{editingLog && <p className="issue-lock-note">To move this time to another issue, delete this worklog and log it again.</p>}</div><div className="input-row log-timing"><label>Duration<input type="text" inputMode="text" autoComplete="off" value={entry.duration} onChange={event => setEntry({ ...entry, duration: event.target.value })} placeholder="30m, 1h 30m or 1.5" aria-invalid={isDurationInvalid} aria-describedby="duration-hint" required /></label>{entry.repeat && !editingLog ? <label>From<input type="date" value={entry.date} onChange={event => event.target.value && setEntry({ ...entry, date: event.target.value, time: nextStartTime(event.target.value) })} required /></label> : <label>Day<select value={entry.date} onChange={event => setEntry({ ...entry, date: event.target.value, time: nextStartTime(event.target.value) })}>{Array.from({ length: hideWeekends ? 5 : 7 }, (_, index) => addDays(startOfWeek(new Date(`${entry.date}T12:00:00`)), index)).map(date => <option value={localDate(date)} key={localDate(date)}>{weekdayLabels[(date.getDay() + 6) % 7]} {String(date.getDate()).padStart(2, '0')}</option>)}</select></label>}<label>Start time<input type="time" value={entry.time} onChange={event => setEntry({ ...entry, time: event.target.value })} required /></label></div>
-      <div className="duration-row"><div className="duration-chips" role="group" aria-label="Common durations">{durationPresets.map(preset => <button type="button" key={preset} className={entryMinutes === parseDuration(preset, workdayHours) ? 'selected' : ''} aria-pressed={entryMinutes === parseDuration(preset, workdayHours)} onClick={() => setEntry({ ...entry, duration: preset })}>{preset}</button>)}</div><small id="duration-hint" className={isDurationInvalid ? 'invalid' : ''}>{isDurationInvalid ? 'Use minutes (30m), hours (2h), both (1h 30m) or hours as a number (1.5).' : entryMinutes ? `= ${formatDuration(entryMinutes)}` : ''}</small></div>
+      <div className="duration-row"><div className="duration-chips" role="group" aria-label="Common durations">{durationPresets.map(preset => <button type="button" key={preset} className={entryMinutes === parseDuration(preset, workdayHours) ? 'selected' : ''} aria-pressed={entryMinutes === parseDuration(preset, workdayHours)} onClick={() => setEntry({ ...entry, duration: preset })}>{preset}</button>)}{fillDayMinutes > 0 && <button type="button" className={`fill-day${entryMinutes === fillDayMinutes ? ' selected' : ''}`} aria-pressed={entryMinutes === fillDayMinutes} title={`${formatDuration(otherDayMinutes)} ${editingLog ? 'on other worklogs' : 'already logged'} + ${formatDuration(fillDayMinutes)} = ${formatDuration(workdayMinutes)}`} onClick={() => setEntry({ ...entry, duration: formatDuration(fillDayMinutes) })}><CalendarCheck size={12} aria-hidden="true" />{formatDuration(fillDayMinutes)} to complete the day</button>}</div><small id="duration-hint" className={isDurationInvalid ? 'invalid' : ''}>{isDurationInvalid ? 'Use minutes (30m), hours (2h), both (1h 30m) or hours as a number (1.5).' : entryMinutes ? `= ${formatDuration(entryMinutes)}` : ''}</small></div>
       {!editingLog && <div className={`repeat-block${entry.repeat ? ' is-open' : ''}`}>
         <label className="repeat-toggle"><button type="button" role="switch" aria-checked={entry.repeat} className={`toggle${entry.repeat ? ' on' : ''}`} onClick={toggleRepeat}><i /></button>Repeat on several days</label>
         {entry.repeat && <div className="repeat-options">

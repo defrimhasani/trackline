@@ -160,6 +160,7 @@ button { cursor: pointer; }
 /* ---------- Log time: durations and repeat ---------- */
 .duration-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:8px}.duration-chips{display:flex;flex-wrap:wrap;gap:4px}
 .duration-chips button{border:1px solid #d5e0e9;border-radius:4px;background:#fff;color:#2d4260;padding:3px 8px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer}.duration-chips button:hover{border-color:#88cfc7}.duration-chips button.selected{border-color:#24a99d;background:#effaf8;color:#127a70}
+.duration-chips button.fill-day{display:inline-flex;align-items:center;gap:4px;border-style:dashed}.duration-chips button.fill-day svg{flex:none;color:#16a89a}.duration-chips button.fill-day.selected{border-style:solid}.duration-chips button.fill-day.selected svg{color:currentColor}
 .duration-row small{color:#5d6e85;font-size:11px;font-weight:600}.duration-row small.invalid{color:#a34a38}.dialog input[aria-invalid="true"]{border-color:#e39a86}
 .repeat-block{margin-top:16px;padding-top:14px;border-top:1px solid #e3eaf1}
 .dialog .repeat-toggle{display:inline-flex;align-items:center;gap:9px;margin:0;font-size:12px;font-weight:700;cursor:pointer}.repeat-toggle .toggle{margin-left:0}
