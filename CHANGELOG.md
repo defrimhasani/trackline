@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.8.0 — 2026-10-28
 
 ### New
 - **Complete the day in one click.** When you log time or edit a worklog, the duration shortcuts now end with the time still needed to bring that day up to your **Workday length**, for example **6h to complete the day** when 2h is already logged. When you edit a worklog, its own time is not counted, so the shortcut always gives the duration that makes the day total match your target. It is left out on weekends, when repeating over several days, and whenever the day's total might be incomplete.
