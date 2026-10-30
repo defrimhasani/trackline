@@ -343,6 +343,7 @@ async fn search_users(query: String) -> Result<Vec<JiraUser>, String> {
 struct TeamIssue {
   key: String, summary: String, project: String, issue_type: Option<String>, issue_type_icon: Option<String>,
   status: Option<String>, status_category: Option<String>, parent_key: Option<String>, parent_summary: Option<String>,
+  priority: Option<String>, priority_id: Option<String>, priority_icon: Option<String>,
   original_estimate_seconds: Option<u64>, time_spent_seconds: Option<u64>,
   field_values: BTreeMap<String, String>,
 }
@@ -392,6 +393,40 @@ async fn list_fields() -> Result<Vec<JiraField>, String> {
       .collect();
     available.sort_by_key(|field| field.name.to_lowercase());
     Ok(available)
+  }).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct JiraPriority { id: String, name: String, icon_url: Option<String>, color: Option<String> }
+
+fn jira_priority(priority: &Value) -> Option<JiraPriority> {
+  Some(JiraPriority {
+    id: priority["id"].as_str()?.to_owned(), name: priority["name"].as_str()?.to_owned(),
+    icon_url: priority["iconUrl"].as_str().map(str::to_owned),
+    color: priority["statusColor"].as_str().filter(|color| color.starts_with('#') && color.len() <= 9 && color[1..].chars().all(|c| c.is_ascii_hexdigit())).map(str::to_owned),
+  })
+}
+
+/// Every priority on the site, highest first, in the order Jira's administrators arranged them.
+#[tauri::command]
+async fn list_priorities() -> Result<Vec<JiraPriority>, String> {
+  in_background(|| {
+    let (site, email, token) = (get_secret("site-url")?, get_secret("email")?, get_secret("api-token")?);
+    let mut priorities = Vec::new();
+    let mut start = 0;
+    loop {
+      let page = match jira_get(&format!("{site}/rest/api/3/priority/search?startAt={start}&maxResults=100"), &email, &token) {
+        Ok(page) => page,
+        // Older sites without the paged search still answer the original list.
+        Err(_) if start == 0 => return Ok(jira_get(&format!("{site}/rest/api/3/priority"), &email, &token)?.as_array().into_iter().flatten().filter_map(jira_priority).collect()),
+        Err(message) => return Err(message),
+      };
+      let values = page["values"].as_array().cloned().unwrap_or_default();
+      start += values.len();
+      priorities.extend(values.iter().filter_map(jira_priority));
+      if values.is_empty() || page["isLast"].as_bool().unwrap_or(true) || start >= 1000 { return Ok(priorities); }
+    }
   }).await
 }
 
@@ -449,4 +484,4 @@ async fn open_issue(issue_key: String) -> Result<(), String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() { tauri::Builder::default().setup(|_app| { #[cfg(target_os = "macos")] { use tauri::Manager; if let Some(window) = _app.get_webview_window("main") { let _ = window_vibrancy::apply_vibrancy(&window, window_vibrancy::NSVisualEffectMaterial::HudWindow, Some(window_vibrancy::NSVisualEffectState::Active), Some(10.0)); } } Ok(()) }).plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_fields, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
+pub fn run() { tauri::Builder::default().setup(|_app| { #[cfg(target_os = "macos")] { use tauri::Manager; if let Some(window) = _app.get_webview_window("main") { let _ = window_vibrancy::apply_vibrancy(&window, window_vibrancy::NSVisualEffectMaterial::HudWindow, Some(window_vibrancy::NSVisualEffectState::Active), Some(10.0)); } } Ok(()) }).plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_fields, list_priorities, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }

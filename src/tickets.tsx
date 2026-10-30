@@ -7,6 +7,7 @@ import { formatHours, hoursNumber, readableError } from './utils';
 export type TeamIssue = {
   key: string; summary: string; project: string; issueType?: string; issueTypeIcon?: string;
   status?: string; statusCategory?: string; parentKey?: string; parentSummary?: string;
+  priority?: string; priorityId?: string; priorityIcon?: string;
   originalEstimateSeconds?: number; timeSpentSeconds?: number; fieldValues?: Record<string, string>;
 };
 export type JiraField = { id: string; name: string; fieldType: string; custom: boolean };
@@ -83,7 +84,7 @@ export function ticketExportFile(rows: TicketRow[], stamp: string, fields: Ticke
   };
 }
 
-function TypeIcon({ row }: { row: TeamIssue }) {
+export function TypeIcon({ row }: { row: TeamIssue }) {
   const [hasFailed, setHasFailed] = useState(false);
   const name = row.issueType ?? 'Issue';
   return row.issueTypeIcon && !hasFailed

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { FolderKanban, Pin, Plus, Search, UserRound, X } from 'lucide-react';
 import { completeSync, formatHours, hoursNumber, isWeekend, localDate, readableError, weekdayLabels, type SyncStatus } from './utils';
 import { SyncNotice, loadTicket } from './sync';
+import { PersonTickets } from './person-tickets';
 import { TicketTable, buildTicketRows, ticketExportFile, type TeamIssue, type TicketField } from './tickets';
 
 export type TeamProject = { key: string; name: string; avatarUrl?: string };
@@ -175,6 +176,7 @@ type TeamWorklogsProps = {
 export function TeamWorklogs(props: TeamWorklogsProps) {
   const { scope, setScope, rows, sync, isLoading, error, onRefresh, periodDays, periodLabel, calendarMode, workdayHours, todayValue, focusIncomplete, hideWeekends } = props;
   const [detail, setDetail] = useState<{ row: TeamRow; date: Date } | null>(null);
+  const [personDetail, setPersonDetail] = useState<TeamRow | null>(null);
   const [groupBy, setGroupBy] = useState<'people' | 'tickets'>(() => localStorage.getItem('trackline.team.groupBy') === 'tickets' ? 'tickets' : 'people');
   useEffect(() => { localStorage.setItem('trackline.team.groupBy', groupBy); }, [groupBy]);
   const ticketRows = useMemo(() => buildTicketRows(props.issues, props.worklogs), [props.issues, props.worklogs]);
@@ -258,7 +260,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
             <th scope="col" className="total-col">Total</th>
           </tr></thead>
           <tbody>{rows.map(row => <tr key={row.accountId}>
-            <th scope="row" className="person-col"><div className="person-cell"><Avatar name={row.name} url={row.avatarUrl} /><span>{row.name}</span>{row.pinned && <Pin size={12} className="pin-mark" aria-label="Pinned" />}</div></th>
+            <th scope="row" className="person-col"><button type="button" className="person-cell" onClick={() => setPersonDetail(row)} title={`See the tickets ${row.name} worked on in ${periodLabel}`}><Avatar name={row.name} url={row.avatarUrl} /><span>{row.name}</span>{row.pinned && <Pin size={12} className="pin-mark" aria-label="Pinned" />}</button></th>
             {periodDays.map(date => {
               const hours = row.hoursByDate.get(localDate(date)) ?? 0;
               const missing = missingFor(row, date);
@@ -293,5 +295,7 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
         </li>)}</ul> : <p className="team-detail-empty">{sync.complete ? 'No time logged on this day.' : 'No time loaded for this day. Some Jira worklogs could not be loaded.'}</p>}
       </section>
     </div>}
+
+    {personDetail && <PersonTickets row={rows.find(row => row.accountId === personDetail.accountId) ?? personDetail} issues={props.issues} periodLabel={periodLabel} isComplete={sync.complete} onClose={() => setPersonDetail(null)} />}
   </section>;
 }

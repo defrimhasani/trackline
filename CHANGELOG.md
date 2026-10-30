@@ -2,6 +2,11 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### New
+- **See what each teammate worked on, by priority.** In **Team worklogs → People**, click a person's name to open their tickets for the week or month. A stacked bar shows how their time splits across Jira priorities, and a bar chart lists each ticket grouped by priority (highest first, using your site's own priority order and colours) with the hours they logged. Hover a ticket to see its status and the days time was logged; click it to open it in Jira.
+
 ## v0.8.0 — 2026-10-28
 
 ### New

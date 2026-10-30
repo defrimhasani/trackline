@@ -79,6 +79,7 @@ button { cursor: pointer; }
 .team-grid thead th{position:sticky;top:0;z-index:2;padding:10px 6px 8px;background:#fafcfe;font-weight:700}.team-grid thead th span{display:block;color:#8492a5;font-size:10px;letter-spacing:.08em}.team-grid thead th strong{font:800 15px Manrope,sans-serif}.team-grid thead th.today-col{box-shadow:inset 0 2px 0 #16a89a}.team-grid thead th.today-col strong{color:#118f84}.dark .team-grid thead th{background:#080c11}.dark .team-grid thead th.today-col strong{color:#5ce0d2}
 .team-grid .person-col{position:sticky;left:0;z-index:1;min-width:200px;padding:0 14px;border-left:0;background:#fff;text-align:left}.team-grid thead .person-col{z-index:3;background:#fafcfe;color:#5d6e85;font-size:11px}.dark .team-grid .person-col{background:#0a0e13}.dark .team-grid thead .person-col{background:#080c11;color:#a9b6c6}
 .person-cell{display:flex;align-items:center;gap:9px;min-height:46px;white-space:nowrap;font-size:13px;font-weight:600}.person-cell>span{overflow:hidden;text-overflow:ellipsis}.pin-mark{flex:0 0 auto;color:#8a99ad}
+button.person-cell{width:100%;border:0;background:transparent;color:inherit;padding:0;font-family:inherit;text-align:left;cursor:pointer}button.person-cell:hover>span{color:#127a70;text-decoration:underline;text-underline-offset:3px}.dark button.person-cell:hover>span{color:#7fd9cf}button.person-cell:focus-visible{outline-offset:-2px}
 .hours-cell button{position:relative;width:100%;min-width:64px;height:46px;border:0;background:transparent;color:inherit;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.team-grid.is-dense .hours-cell button{min-width:44px;height:42px;font-size:11px}.hours-cell:not(.has-hours) button{color:#a3afbd;font-weight:500}.dark .hours-cell:not(.has-hours) button{color:#4c5968}.hours-cell button:hover{background:#f4f8fb}.dark .hours-cell button:hover{background:#111922}.hours-cell button small{display:block;margin-top:1px;color:#9c3d28;font-size:10px;font-weight:700}.dark .hours-cell button small{color:#ffb4a3}
 .cell-meter{position:absolute;left:8px;right:8px;bottom:5px;height:3px;overflow:hidden;border-radius:2px;background:#e9eef3}.cell-meter i{display:block;height:100%;background:#39bbaf}.dark .cell-meter{background:#1a232d}
 .team-grid .weekend-col{background:rgba(120,140,165,.05)}.hours-cell.is-incomplete{background:rgba(239,148,124,.13)}.hours-cell.is-incomplete .cell-meter i{background:#ef947c}.hours-cell.is-muted button{opacity:.4}.hours-cell.is-muted button:hover,.hours-cell.is-muted button:focus-visible{opacity:.85}
@@ -292,3 +293,22 @@ button { cursor: pointer; }
 .dark .insight-icon{background:rgba(52,200,190,.18);color:#7fd9cf}
 .dark .bar-track{background:rgba(255,255,255,.1)}.dark .week-bar{background:rgba(92,224,210,.45)}.dark .week-bar.met{background:#4fd8c9}
 .dark .project-split,.dark .gap-list li{border-color:var(--glass-line)}.dark .gap-list small{color:#ffb4a3}.dark .gap-list button{border-color:var(--glass-edge)}.dark .gap-list button:hover{color:#8ce1d8;border-color:rgba(92,224,210,.5)}.dark .insight-ok{color:#8ce1d8}
+
+/* Person tickets: hours by Jira priority */
+.person-tickets{width:min(660px,100%)}
+.priority-mix{margin:18px 0 0;padding:14px 0 16px;border-top:1px solid #e3eaf1;border-bottom:1px solid #e3eaf1}
+.priority-stack{display:flex;gap:2px;height:10px;overflow:hidden;border-radius:5px;background:#e9eef3}.priority-stack i{display:block;flex:1 1 0;min-width:3px;height:100%}
+.priority-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0 0;padding:0;list-style:none;color:#2d4260;font-size:12px;font-weight:600}.priority-legend li{display:inline-flex;align-items:center;gap:6px}.priority-legend i{width:9px;height:9px;border-radius:2px}.priority-legend b{font-variant-numeric:tabular-nums}.priority-legend small{color:#5d6e85;font-size:11px;font-variant-numeric:tabular-nums}
+.priority-chart{display:grid;gap:14px;margin-top:14px}
+.priority-group h3{display:flex;align-items:center;gap:7px;margin:0 0 4px;padding:0 6px;font:800 12px Manrope,sans-serif}.priority-group h3 small{margin-left:auto;color:#5d6e85;font:600 11px 'DM Sans',sans-serif;font-variant-numeric:tabular-nums}
+.priority-icon{flex:0 0 auto;width:16px;height:16px}.priority-swatch{display:inline-block;flex:0 0 auto;width:10px;height:10px;margin:3px;border-radius:2px;background:var(--priority)}
+.priority-group ul{display:grid;gap:1px;margin:0;padding:0;list-style:none}
+.priority-bar-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) 46px 13px;align-items:center;gap:12px;width:100%;border:0;border-radius:5px;background:transparent;color:inherit;padding:6px;font:inherit;text-align:left;cursor:pointer}.priority-bar-row:hover{background:#f4f8fb}.priority-bar-row:focus-visible{outline-offset:-2px}
+.priority-ticket{display:flex;align-items:center;gap:8px;min-width:0}.priority-ticket b{flex:0 0 auto;font-size:11px;letter-spacing:.03em}.priority-ticket span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px}
+.priority-track{display:block;height:10px;overflow:hidden;border-radius:5px;background:#eef3f7}.priority-track i{display:block;height:100%;border-radius:inherit;background:var(--priority);transition:width .3s}
+.priority-bar-row em{font-style:normal;font-size:12px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.priority-open{color:#8a99ad;opacity:0;transition:opacity .15s}.priority-bar-row:hover .priority-open,.priority-bar-row:focus-visible .priority-open{opacity:1}
+.person-tickets .team-note{margin-top:14px}
+@media (max-width:600px){.priority-bar-row{grid-template-columns:minmax(0,1fr) 46px 13px}.priority-track{grid-column:1/-1;grid-row:2}}
+@media (prefers-reduced-motion:reduce){.priority-track i{transition:none}}
+.dark .priority-mix{border-color:var(--glass-line)}.dark .priority-stack,.dark .priority-track{background:rgba(255,255,255,.1)}.dark .priority-legend{color:#d3dde8}.dark .priority-legend small,.dark .priority-group h3 small,.dark .priority-open{color:#a9b6c6}.dark .priority-bar-row:hover{background:rgba(255,255,255,.08)}

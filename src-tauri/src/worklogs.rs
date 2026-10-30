@@ -53,6 +53,9 @@ fn team_issue(issue: &Value, field_ids: &[String]) -> TeamIssue {
     status_category: fields["status"]["statusCategory"]["key"].as_str().map(str::to_owned),
     parent_key: fields["parent"]["key"].as_str().map(str::to_owned),
     parent_summary: fields["parent"]["fields"]["summary"].as_str().map(str::to_owned),
+    priority: fields["priority"]["name"].as_str().map(str::to_owned),
+    priority_id: fields["priority"]["id"].as_str().map(str::to_owned),
+    priority_icon: fields["priority"]["iconUrl"].as_str().map(str::to_owned),
     original_estimate_seconds: fields["timeoriginalestimate"].as_u64(),
     time_spent_seconds: fields["timespent"].as_u64(),
     field_values: field_ids.iter().filter_map(|id| field_text(&fields[id.as_str()]).map(|text| (id.clone(), text))).collect(),
@@ -79,7 +82,7 @@ pub fn team(api: &dyn JiraRead, cancel: &CancelToken, query: &TeamQuery) -> Resu
   if !query.project_keys.is_empty() { scope.push(format!("project in ({})", query.project_keys.join(", "))); }
   if !query.account_ids.is_empty() { scope.push(format!("worklogAuthor in ({})", query.account_ids.iter().map(|id| format!("\"{id}\"")).collect::<Vec<_>>().join(", "))); }
   let jql = encode(&format!("({}) AND worklogDate >= \"{}\" AND worklogDate < \"{}\"", scope.join(" OR "), query.start_date, query.end_date));
-  let mut fields = vec!["summary", "project", "issuetype", "status", "parent", "timeoriginalestimate", "timespent"];
+  let mut fields = vec!["summary", "project", "issuetype", "status", "parent", "priority", "timeoriginalestimate", "timespent"];
   fields.extend(query.field_ids.iter().map(String::as_str));
   let search = sync::search_all(api, cancel, &format!("/rest/api/3/search/jql?jql={jql}&fields={}", fields.join(",")), ISSUE_LIMIT)?;
   let details: Vec<TeamIssue> = search.issues.iter().map(|issue| team_issue(issue, &query.field_ids)).collect();
@@ -354,6 +357,7 @@ mod tests {
     assert_eq!((issue.key.as_str(), issue.project.as_str(), issue.summary.as_str()), ("TRK-1", "TRK", "Summary of TRK-1"));
     assert_eq!((issue.issue_type.as_deref(), issue.status.as_deref(), issue.status_category.as_deref()), (Some("Task"), Some("In Progress"), Some("indeterminate")));
     assert_eq!((issue.parent_key.as_deref(), issue.parent_summary.as_deref()), (Some("EPIC-1"), Some("The epic")));
+    assert_eq!((issue.priority.as_deref(), issue.priority_id.as_deref(), issue.priority_icon.as_deref()), (Some("High"), Some("2"), Some("https://jira.test/high.svg")));
     assert_eq!((issue.original_estimate_seconds, issue.time_spent_seconds), (Some(7200), Some(3600)));
     assert_eq!(issue.field_values.get("customfield_10010").map(String::as_str), Some("Platform"));
     let log = &loaded.worklogs[0];

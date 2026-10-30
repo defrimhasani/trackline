@@ -48,6 +48,7 @@ impl Ticket {
         "issuetype": { "name": "Task", "iconUrl": "https://jira.test/task.svg" },
         "status": { "name": "In Progress", "statusCategory": { "key": "indeterminate" } },
         "parent": { "key": "EPIC-1", "fields": { "summary": "The epic" } },
+        "priority": { "id": "2", "name": "High", "iconUrl": "https://jira.test/high.svg" },
         "timeoriginalestimate": 7200,
         "timespent": 3600,
         "customfield_10010": "Platform",
