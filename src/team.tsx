@@ -296,6 +296,6 @@ export function TeamWorklogs(props: TeamWorklogsProps) {
       </section>
     </div>}
 
-    {personDetail && <PersonTickets row={rows.find(row => row.accountId === personDetail.accountId) ?? personDetail} issues={props.issues} periodLabel={periodLabel} isComplete={sync.complete} onClose={() => setPersonDetail(null)} />}
+    {personDetail && <PersonTickets row={rows.find(row => row.accountId === personDetail.accountId) ?? personDetail} issues={props.issues} periodLabel={periodLabel} periodRange={{ start: localDate(periodDays[0]!), end: localDate(periodDays[periodDays.length - 1]!) }} isComplete={sync.complete} onClose={() => setPersonDetail(null)} />}
   </section>;
 }
