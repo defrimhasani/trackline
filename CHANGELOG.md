@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.10.0 — 2026-11-04
 
 ### New
 - **Pick any date range for a teammate's tickets.** In a person's tickets dialog, a range picker with a calendar and presets (this week or month, last 7 or 30 days, last month, last 3 months, this year) shows which tickets they worked on in any timeframe, not just the week or month on screen.
