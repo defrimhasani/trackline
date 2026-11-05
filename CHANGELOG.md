@@ -2,7 +2,7 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
-## Unreleased
+## v0.11.0 — 2026-11-05
 
 ### New
 - **Drag and drop in the week view.** Drag a worklog to another time or day, or drag its bottom edge to change how long it lasts. It snaps to 15 minutes, saves to Jira straight away and goes back if Jira refuses it. Press **Esc** to cancel a drag.
