@@ -18,7 +18,10 @@
         "minWidth": 760,
         "minHeight": 560,
         "resizable": true,
-        "transparent": true
+        "transparent": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 22 }
       }
     ],
     "macOSPrivateApi": true,

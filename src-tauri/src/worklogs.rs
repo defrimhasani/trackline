@@ -18,25 +18,29 @@ pub struct TeamQuery {
 /// The day a worklog started, as `YYYY-MM-DD`.
 fn started_day(started: &str) -> &str { started.get(..10).unwrap_or(started) }
 
-fn own_worklog(query: &WeekQuery, key: &str, summary: &str, log: &Value) -> Option<JiraWorklog> {
+/// A ticket's issue type name and icon URL.
+type IssueType = (Option<String>, Option<String>);
+
+fn own_worklog(query: &WeekQuery, key: &str, summary: &str, issue_type: &IssueType, log: &Value) -> Option<JiraWorklog> {
   if log["author"]["accountId"].as_str() != Some(query.account_id.as_str()) { return None; }
   let started = log["started"].as_str().unwrap_or_default();
   let date = started_day(started);
   if date < query.start_date.as_str() || date >= query.end_date.as_str() { return None; }
   Some(JiraWorklog {
     id: log["id"].as_str().unwrap_or_default().to_owned(), date: date.to_owned(), started_at: started.to_owned(),
-    issue: key.to_owned(), summary: summary.to_owned(), duration_minutes: log["timeSpentSeconds"].as_u64().unwrap_or(0) / 60,
+    issue: key.to_owned(), summary: summary.to_owned(), issue_type: issue_type.0.clone(), issue_type_icon: issue_type.1.clone(), duration_minutes: log["timeSpentSeconds"].as_u64().unwrap_or(0) / 60,
     description: comment_text(&log["comment"]),
   })
 }
 
 pub fn week(api: &dyn JiraRead, cancel: &CancelToken, query: &WeekQuery) -> Result<WeekWorklogs, Failure> {
   let jql = encode(&format!("worklogAuthor = currentUser() AND worklogDate >= \"{}\" AND worklogDate < \"{}\"", query.start_date, query.end_date));
-  let search = sync::search_all(api, cancel, &format!("/rest/api/3/search/jql?jql={jql}&fields=summary"), ISSUE_LIMIT)?;
-  let issues: Vec<(String, String)> = search.issues.iter().map(|issue| (
+  let search = sync::search_all(api, cancel, &format!("/rest/api/3/search/jql?jql={jql}&fields=summary,issuetype"), ISSUE_LIMIT)?;
+  let issues: Vec<(String, String, IssueType)> = search.issues.iter().map(|issue| (
     issue["key"].as_str().unwrap_or_default().to_owned(), issue["fields"]["summary"].as_str().unwrap_or("Untitled Jira work").to_owned(),
+    (issue["fields"]["issuetype"]["name"].as_str().map(str::to_owned), issue["fields"]["issuetype"]["iconUrl"].as_str().map(str::to_owned)),
   )).collect();
-  let (mut worklogs, gaps) = sync::gather(api, cancel, &issues, |(key, _)| key.as_str(), (query.started_after, query.started_before), |(key, summary), log| own_worklog(query, key, summary, log))?;
+  let (mut worklogs, gaps) = sync::gather(api, cancel, &issues, |(key, _, _)| key.as_str(), (query.started_after, query.started_before), |(key, summary, kind), log| own_worklog(query, key, summary, kind, log))?;
   worklogs.sort_by(|a, b| a.started_at.cmp(&b.started_at));
   Ok(WeekWorklogs { worklogs, sync: SyncStatus::describe(search.gap.as_ref(), &gaps) })
 }
@@ -148,7 +152,7 @@ mod tests {
     assert_eq!(api.transport().count("search/jql"), 3);
     assert_eq!(api.transport().count("/worklog"), 250);
     assert!(api.transport().requests()[0].starts_with(
-      "/rest/api/3/search/jql?jql=worklogAuthor+%3D+currentUser%28%29+AND+worklogDate+%3E%3D+%222026-03-02%22+AND+worklogDate+%3C+%222026-03-09%22&fields=summary&maxResults=100"
+      "/rest/api/3/search/jql?jql=worklogAuthor+%3D+currentUser%28%29+AND+worklogDate+%3E%3D+%222026-03-02%22+AND+worklogDate+%3C+%222026-03-09%22&fields=summary,issuetype&maxResults=100"
     ));
   }
 

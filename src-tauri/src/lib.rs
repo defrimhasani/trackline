@@ -12,7 +12,7 @@ const KEYCHAIN_SERVICE: &str = "com.trackline.timesheet.jira";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct JiraWorklog { id: String, date: String, started_at: String, issue: String, summary: String, duration_minutes: u64, description: String }
+struct JiraWorklog { id: String, date: String, started_at: String, issue: String, summary: String, issue_type: Option<String>, issue_type_icon: Option<String>, duration_minutes: u64, description: String }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -484,4 +484,4 @@ async fn open_issue(issue_key: String) -> Result<(), String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() { tauri::Builder::default().setup(|_app| { #[cfg(target_os = "macos")] { use tauri::Manager; if let Some(window) = _app.get_webview_window("main") { let _ = window_vibrancy::apply_vibrancy(&window, window_vibrancy::NSVisualEffectMaterial::HudWindow, Some(window_vibrancy::NSVisualEffectState::Active), Some(10.0)); } } Ok(()) }).plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_fields, list_priorities, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }
+pub fn run() { tauri::Builder::default().setup(|_app| { #[cfg(target_os = "macos")] { use tauri::Manager; if let Some(window) = _app.get_webview_window("main") { let glass = window_vibrancy::apply_liquid_glass(&window, window_vibrancy::LiquidGlassOptions::new(window_vibrancy::NSGlassEffectViewStyle::Regular).radius(16.0)).ok(); if glass.is_none() { let _ = window_vibrancy::apply_vibrancy(&window, window_vibrancy::NSVisualEffectMaterial::HudWindow, Some(window_vibrancy::NSVisualEffectState::Active), Some(10.0)); } } } Ok(()) }).plugin(tauri_plugin_notification::init()).plugin(tauri_plugin_process::init()).plugin(tauri_plugin_updater::Builder::new().build()).invoke_handler(tauri::generate_handler![open_api_token_page, connect_jira, jira_connection, get_week_worklogs, list_issues, search_issues, add_worklog, update_worklog, delete_worklog, search_projects, search_users, get_team_worklogs, list_fields, list_priorities, save_csv, reveal_file, open_issue]).run(tauri::generate_context!()).expect("error while running Trackline"); }

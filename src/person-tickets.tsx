@@ -12,12 +12,17 @@ type PriorityGroup = { key: string; name: string; iconUrl?: string; color: strin
 
 // Used when the site's priority list can't be read, and for priorities missing from it.
 const commonOrder = ['blocker', 'highest', 'critical', 'high', 'major', 'medium', 'normal', 'low', 'minor', 'lowest', 'trivial'];
+const tone = (lightness: number, chroma: number, hue: number) => `oklch(${lightness} ${chroma} ${hue})`;
 const commonColors: Record<string, string> = {
-  blocker: '#c9372c', highest: '#c9372c', critical: '#c9372c', high: '#e5684d', major: '#e5684d',
-  medium: '#e9a23b', normal: '#e9a23b', low: '#3f8fd6', minor: '#3f8fd6', lowest: '#8a99ad', trivial: '#8a99ad',
+  blocker: tone(.64, .2, 25), highest: tone(.64, .2, 25), critical: tone(.64, .2, 25),
+  high: tone(.7, .17, 48), major: tone(.7, .17, 48),
+  medium: tone(.8, .15, 85), normal: tone(.8, .15, 85),
+  low: tone(.7, .13, 235), minor: tone(.7, .13, 235),
+  lowest: tone(.68, .06, 250), trivial: tone(.68, .06, 250),
 };
-const otherColor = '#7588e9';
-const noPriorityColor = '#b9c5d2';
+const noPriorityColor = tone(.6, .01, 250);
+// Jira's own priority colors are often black or white, so unknown names get a warm-to-cool ramp by their place in the site's list.
+const rampColor = (index: number, count: number) => { const t = count > 1 ? index / (count - 1) : 0; return tone(.7, .16 - t * .08, 25 + t * 225); };
 
 let prioritiesRequest: Promise<JiraPriority[]> | undefined;
 function loadPriorities() {
@@ -36,7 +41,7 @@ function priorityGroups(rows: TicketRow[], priorities: JiraPriority[]): Priority
     if (!group) {
       const common = commonOrder.indexOf(name?.toLowerCase() ?? '');
       const rank = !name ? Number.MAX_SAFE_INTEGER : known ? index : priorities.length + (common >= 0 ? common : commonOrder.length);
-      const color = known?.color ?? (name ? commonColors[name.toLowerCase()] ?? otherColor : noPriorityColor);
+      const color = !name ? noPriorityColor : commonColors[name.toLowerCase()] ?? (known ? rampColor(index, priorities.length) : tone(.7, .12, 270));
       group = { key, name: name ?? 'No priority', iconUrl: row.priorityIcon ?? known?.iconUrl, color, rank, hours: 0, tickets: [] };
       groups.set(key, group);
     }

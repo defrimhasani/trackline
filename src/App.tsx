@@ -15,21 +15,41 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+type IssueKind = 'task' | 'story' | 'bug' | 'epic' | 'subtask' | 'other';
 type Worklog = {
   id: number; date: string; issue: string; title: string; duration: number;
-  start: number; accent: 'teal' | 'blue' | 'violet' | 'coral'; description: string;
+  start: number; accent: IssueKind; shade: number; typeName?: string; typeIcon?: string; description: string;
 };
-type DayIssue = { issue: string; title: string; duration: number; accent: Worklog['accent'] };
+type DayIssue = { issue: string; title: string; duration: number; accent: Worklog['accent']; shade: number; typeName?: string; typeIcon?: string };
 type CachedRange = { start: string; end: string; logs: Worklog[] };
 
-type JiraWorklog = { id: string; date: string; startedAt: string; issue: string; summary: string; durationMinutes: number; description: string };
+type JiraWorklog = { id: string; date: string; startedAt: string; issue: string; summary: string; issueType?: string; issueTypeIcon?: string; durationMinutes: number; description: string };
 type WeekWorklogs = { worklogs: JiraWorklog[]; sync: SyncStatus };
 type JiraConnection = { connected: boolean; displayName?: string; siteName?: string };
 
 const displayDate = (date: Date) => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const startOfWeek = (date = new Date()) => { const monday = new Date(date); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7)); return monday; };
-const accents: Worklog['accent'][] = ['teal', 'blue', 'violet', 'coral'];
-const accentFor = (issue: string) => accents[[...issue].reduce((sum, character) => sum + character.charCodeAt(0), 0) % accents.length];
+const minRailWidth = 80;
+const minExpandedRailWidth = 190;
+const maxRailWidth = 340;
+const defaultRailWidth = 234;
+const kindFor = (typeName?: string): IssueKind => {
+  const name = (typeName ?? '').toLowerCase().replace(/[\s_-]/g, '');
+  if (!name) return 'other';
+  if (/bug|defect|incident|problem/.test(name)) return 'bug';
+  if (/subtask/.test(name)) return 'subtask';
+  if (/epic|initiative/.test(name)) return 'epic';
+  if (/story|feature|improvement|enhancement/.test(name)) return 'story';
+  if (/task|chore|support|spike/.test(name)) return 'task';
+  return 'other';
+};
+const shadeFor = (issue: string) => [...issue].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 3;
+const typeFields = (issue: string, typeName?: string, typeIcon?: string) => ({ accent: kindFor(typeName), shade: shadeFor(issue), typeName, typeIcon });
+function TypeMark({ icon, name }: { icon?: string; name?: string }) {
+  const [hasFailed, setHasFailed] = useState(false);
+  if (!icon || hasFailed) return <i className="type-dot" aria-hidden="true" />;
+  return <img className="type-mark" src={icon} alt="" title={name} width={12} height={12} onError={() => setHasFailed(true)} />;
+}
 
 type PlacedWorklog = { log: Worklog; column: number; columns: number };
 const placeDayWorklogs = (dayLogs: Worklog[], minimumDuration: number): PlacedWorklog[] => {
@@ -78,6 +98,31 @@ export default function App() {
   const [logs, setLogs] = useState<Worklog[]>([]);
   const [transparency, setTransparency] = useState(() => { const raw = localStorage.getItem('trackline.transparency'); const saved = Number(raw); return raw !== null && Number.isFinite(saved) ? Math.min(100, Math.max(0, saved)) : 50; });
   useEffect(() => { localStorage.setItem('trackline.transparency', String(transparency)); }, [transparency]);
+  const [railWidth, setRailWidth] = useState(() => { const saved = Number(localStorage.getItem('trackline.railWidth')); return Number.isFinite(saved) && saved >= minRailWidth ? Math.min(saved, maxRailWidth) : defaultRailWidth; });
+  useEffect(() => { localStorage.setItem('trackline.railWidth', String(railWidth)); }, [railWidth]);
+  const railMini = railWidth <= minRailWidth;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.metaKey && event.altKey && event.code === 'KeyS') { event.preventDefault(); setRailWidth(width => width <= minRailWidth ? defaultRailWidth : minRailWidth); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const startRailResize = (event: React.PointerEvent) => {
+    event.preventDefault();
+    const left = (event.currentTarget as HTMLElement).parentElement!.getBoundingClientRect().left;
+    document.body.classList.add('is-resizing-rail');
+    const onMove = (move: PointerEvent) => {
+      const raw = move.clientX - left;
+      setRailWidth(raw < 130 ? minRailWidth : Math.round(Math.min(maxRailWidth, Math.max(minExpandedRailWidth, raw))));
+    };
+    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); document.body.classList.remove('is-resizing-rail'); };
+    window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+  };
+  const onRailResizeKey = (event: React.KeyboardEvent) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const next = railWidth + (event.key === 'ArrowRight' ? 16 : -16);
+    setRailWidth(next < 130 ? minRailWidth : Math.min(maxRailWidth, Math.max(minExpandedRailWidth, next)));
+  };
   const [isDark, setIsDark] = useState(() => localStorage.getItem('trackline.theme') !== 'light');
   useEffect(() => { localStorage.setItem('trackline.theme', isDark ? 'dark' : 'light'); }, [isDark]);
   const [view, setView] = useState<'calendar' | 'settings' | 'worklogs' | 'insights'>('calendar');
@@ -169,8 +214,11 @@ export default function App() {
     })
       .then(({ worklogs, sync }) => {
         const rangeLogs = worklogs.map(worklog => {
-          const [hour, minute] = worklog.startedAt.slice(11, 16).split(':').map(Number);
-          return { id: Number(worklog.id), date: worklog.date, issue: worklog.issue, title: worklog.summary, duration: worklog.durationMinutes / 60, start: hour + minute / 60, accent: accentFor(worklog.issue), description: worklog.description };
+          const startedAt = new Date(worklog.startedAt.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+          const validStart = !Number.isNaN(startedAt.getTime());
+          const [hour, minute] = validStart ? [startedAt.getHours(), startedAt.getMinutes()] : worklog.startedAt.slice(11, 16).split(':').map(Number);
+          const date = validStart ? localDate(startedAt) : worklog.date;
+          return { id: Number(worklog.id), date, issue: worklog.issue, title: worklog.summary, duration: worklog.durationMinutes / 60, start: hour + minute / 60, ...typeFields(worklog.issue, worklog.issueType, worklog.issueTypeIcon), description: worklog.description };
         });
         // An incomplete load is shown but not remembered, so coming back to this period tries Jira again.
         if (sync.complete) rangeCache.current.push({ start, end, logs: rangeLogs });
@@ -194,7 +242,7 @@ export default function App() {
     const grouped = new Map<string, Map<string, DayIssue>>();
     for (const log of logs) {
       const dayIssues = grouped.get(log.date) ?? new Map<string, DayIssue>();
-      dayIssues.set(log.issue, { issue: log.issue, title: log.title, accent: log.accent, duration: (dayIssues.get(log.issue)?.duration ?? 0) + log.duration });
+      dayIssues.set(log.issue, { issue: log.issue, title: log.title, accent: log.accent, shade: log.shade, typeName: log.typeName, typeIcon: log.typeIcon, duration: (dayIssues.get(log.issue)?.duration ?? 0) + log.duration });
       grouped.set(log.date, dayIssues);
     }
     return new Map([...grouped].map(([date, dayIssues]) => [date, [...dayIssues.values()].sort((a, b) => b.duration - a.duration)]));
@@ -211,6 +259,8 @@ export default function App() {
   const nowHours = now.getHours() + now.getMinutes() / 60;
   const nowLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const [hoverSlot, setHoverSlot] = useState<{ date: string; start: number } | null>(null);
+  const [drag, setDrag] = useState<{ id: number; mode: 'move' | 'resize'; date: string; start: number; duration: number } | null>(null);
+  const suppressClick = useRef(false);
   const slotTime = (hoursValue: number) => `${String(Math.floor(hoursValue)).padStart(2, '0')}:${String(Math.round((hoursValue % 1) * 60)).padStart(2, '0')}`;
   const slotFromPointer = (event: React.MouseEvent<HTMLDivElement>) => {
     const offset = event.clientY - event.currentTarget.getBoundingClientRect().top;
@@ -440,7 +490,7 @@ export default function App() {
     const { key, summary } = selectedIssue;
     const description = entry.description.trim();
     const [hour, minute] = entry.time.split(':').map(Number);
-    const toWorklog = (id: number, date: string): Worklog => ({ id, date, issue: key, title: summary, duration: durationMinutes / 60, start: hour + minute / 60, accent: accentFor(key), description });
+    const toWorklog = (id: number, date: string): Worklog => ({ id, date, issue: key, title: summary, duration: durationMinutes / 60, start: hour + minute / 60, ...typeFields(key, selectedIssue.issueType, selectedIssue.issueTypeIcon), description });
     setIsSavingLog(true); setSaveLogError(''); setSaveProgress('');
     try {
       if (editingLog) {
@@ -469,6 +519,60 @@ export default function App() {
     } catch (error) { setSaveLogError(readableError(error)); }
     finally { setIsSavingLog(false); setSaveProgress(''); }
   };
+  const draggedLog = drag ? logs.find(log => log.id === drag.id) : undefined;
+  const startDrag = (event: React.PointerEvent, log: Worklog, mode: 'move' | 'resize') => {
+    if (event.button !== 0 || calendarMode !== 'week') return;
+    event.stopPropagation();
+    const lanes = [...document.querySelectorAll<HTMLElement>('.grid-area .day-lane')];
+    if (lanes.length !== days.length) return;
+    const card = (event.currentTarget as HTMLElement).closest('.worklog') as HTMLElement;
+    const originX = event.clientX; const originY = event.clientY;
+    const grab = event.clientY - card.getBoundingClientRect().top;
+    const snap = (value: number) => Math.round(value * 4) / 4;
+    const home = Math.max(0, days.findIndex(day => day.value === log.date));
+    let moved = false; let cancelled = false;
+    let latest = { date: log.date, start: log.start, duration: log.duration };
+    document.body.style.userSelect = 'none';
+    const onMove = (move: PointerEvent) => {
+      if (!moved && Math.hypot(move.clientX - originX, move.clientY - originY) < 4) return;
+      moved = true;
+      if (mode === 'move') {
+        const index = lanes.findIndex(lane => { const box = lane.getBoundingClientRect(); return move.clientX >= box.left && move.clientX < box.right; });
+        const laneIndex = index >= 0 ? index : move.clientX < lanes[0]!.getBoundingClientRect().left ? 0 : lanes.length - 1;
+        const top = lanes[laneIndex]!.getBoundingClientRect().top;
+        const start = Math.max(0, Math.min(snap(firstHour + (move.clientY - top - grab) / hourHeight), 24 - log.duration));
+        latest = { date: days[laneIndex]!.value, start, duration: log.duration };
+      } else {
+        const top = lanes[home]!.getBoundingClientRect().top;
+        const end = snap(firstHour + (move.clientY - top) / hourHeight);
+        latest = { date: log.date, start: log.start, duration: Math.max(.25, Math.min(end - log.start, 24 - log.start)) };
+      }
+      setDrag({ id: log.id, mode, ...latest });
+    };
+    const finish = () => {
+      window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('keydown', onKey);
+      document.body.style.userSelect = ''; setDrag(null);
+    };
+    const onKey = (key: KeyboardEvent) => { if (key.key === 'Escape') { cancelled = true; suppressClick.current = true; window.setTimeout(() => { suppressClick.current = false; }, 0); finish(); } };
+    const onUp = () => {
+      finish();
+      if (!moved || cancelled) return;
+      suppressClick.current = true; window.setTimeout(() => { suppressClick.current = false; }, 0);
+      if (latest.date === log.date && latest.start === log.start && latest.duration === log.duration) return;
+      void commitDrag(log, latest);
+    };
+    window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp); window.addEventListener('keydown', onKey);
+  };
+  const commitDrag = async (log: Worklog, next: { date: string; start: number; duration: number }) => {
+    applyWorklogChange(log.id, { ...log, ...next });
+    try {
+      await invoke('update_worklog', { issueKey: log.issue, worklogId: String(log.id), started: jiraStarted(next.date, slotTime(next.start)), durationMinutes: Math.round(next.duration * 60), description: '', clearComment: false });
+      showToast(`Updated ${log.issue}: ${new Date(`${next.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}, ${timeLabel(next.start)} · ${formatDuration(Math.round(next.duration * 60))}`);
+    } catch (error) {
+      applyWorklogChange(log.id, log);
+      showToast(`Couldn't update ${log.issue}: ${readableError(error)}`);
+    }
+  };
   const isTeamExport = exportScope === 'Team worklogs';
   const exportSync = isTeamExport ? team.sync : calendarSync;
   const isExportLoading = isTeamExport ? team.isLoading : isCalendarLoading;
@@ -490,9 +594,11 @@ export default function App() {
     finally { setIsExporting(false); }
   };
 
-  return <main className={isDark ? 'app dark' : 'app'} style={{ '--t': transparency / 100 } as React.CSSProperties}>
-    <aside className="rail" aria-label="Primary navigation">
-      <button className="brand" aria-label="Trackline home" onClick={() => setView('calendar')}><span className="brand-mark"><i /><i /><i /></span><span>TRACKLINE</span></button>
+  return <main className={`${isDark ? 'app dark' : 'app'}${railMini ? ' rail-mini' : ''}`} style={{ '--t': transparency / 100, '--rail-w': `${railWidth}px` } as React.CSSProperties}>
+    <aside className="rail" aria-label="Primary navigation" data-tauri-drag-region>
+      <div className="rail-head">
+        <button className="brand" aria-label="Trackline home" onClick={() => setView('calendar')}><span className="brand-mark"><i /><i /><i /></span><span>TRACKLINE</span></button>
+      </div>
       <nav>
         <button className={`nav-item ${view === 'calendar' ? 'active' : ''}`} onClick={() => setView('calendar')}><CalendarDays size={19} /><span>Calendar</span></button>
         <button className={`nav-item ${view === 'worklogs' ? 'active' : ''}`} onClick={() => setView('worklogs')}><TimerReset size={19} /><span>Worklogs</span></button>
@@ -503,13 +609,14 @@ export default function App() {
       <button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => setView('settings')}><Settings2 size={19} /><span>Settings</span></button>
        <div className="profile"><div className="avatar">{(jiraAccount?.displayName ?? 'Trackline').split(/[\s.]+/).filter(Boolean).slice(0, 2).map(part => part[0]!.toUpperCase()).join('')}</div><div><strong>{jiraAccount?.displayName ?? 'Not connected'}</strong><small>{syncState === 'ready' ? <>Jira connected <Check size={12} /></> : syncState === 'error' ? 'Jira unavailable' : 'Connecting to Jira…'}</small></div></div>
     </aside>
+    <div className="rail-resizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow={railWidth} aria-valuemin={minRailWidth} aria-valuemax={maxRailWidth} tabIndex={0} onPointerDown={startRailResize} onDoubleClick={() => setRailWidth(width => width <= minRailWidth ? defaultRailWidth : minRailWidth)} onKeyDown={onRailResizeKey} title="Drag to resize · double-click to minimise" />
 
     <section className="workspace">
       <UpdateBanner updates={updates} />
-      {view === 'settings' || view === 'insights' ? <header className="topbar settings-topbar">
+      {view === 'settings' || view === 'insights' ? <header className="topbar settings-topbar" data-tauri-drag-region>
         <button className="back-link" onClick={() => setView('calendar')}><ChevronLeft size={18} />Calendar</button>
         {view === 'settings' && <span className="settings-note"><Check size={14} />Changes apply immediately</span>}
-      </header> : <header className="topbar">
+      </header> : <header className="topbar" data-tauri-drag-region>
           <div className="week-switcher period-bar"><button className="today-button" onClick={() => setFocusDate(new Date())}>Today</button><span className="period-nav"><button onClick={() => movePeriod(-1)} aria-label={`Previous ${calendarMode}`} title={`Previous ${calendarMode}`}><ChevronLeft size={17} /></button><button onClick={() => movePeriod(1)} aria-label={`Next ${calendarMode}`} title={`Next ${calendarMode}`}><ChevronRight size={17} /></button></span><div className="period-label">{calendarMode === 'month' ? <MonthPicker value={monthStart} label={periodLabel} onChange={setFocusDate} /> : <strong>{periodLabel}</strong>}<span aria-live="polite">{(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? 'Syncing Jira worklogs…' : `${view === 'worklogs' ? 'Team worklogs' : 'Jira worklog calendar'}${(view === 'worklogs' ? team.syncedAt : calendarSyncedAt) ? ` · synced ${(view === 'worklogs' ? team.syncedAt : calendarSyncedAt)!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`}</span></div></div>
         <div className="top-actions"><button className={`icon-button refresh-button${(view === 'worklogs' ? team.isLoading : isCalendarLoading) ? ' is-spinning' : ''}`} onClick={refreshData} disabled={view === 'worklogs' ? team.isLoading : isCalendarLoading} aria-label="Refresh from Jira" title="Refresh from Jira (⌘R)"><RefreshCw size={18} /></button><button className="icon-button theme-toggle" onClick={() => setIsDark(value => !value)} aria-label="Toggle color theme">{isDark ? <Sun size={18} /> : <Moon size={18} />}</button><button className="export-button" onClick={openExport}><Download size={17} />Export</button><button className="primary-button" onClick={() => openLogDialog()}><Plus size={18} />Log time</button></div>
       </header>}
@@ -596,7 +703,7 @@ export default function App() {
             {days.map(day => { const total = hoursByDate.get(day.value) ?? 0; const missing = missingHoursFor(new Date(`${day.value}T12:00:00`)); return <div className={`day-header${day.value === todayValue ? ' current-day' : ''}${day.weekend ? ' weekend' : ''}${focusClass(missing)}`} key={day.value}><span>{day.label}</span><strong>{day.date}</strong><small>{formatHours(total)}{day.total > 0 && <b> /{formatHours(day.total)}</b>}{showFocus && missing > 0 && <em className="missing-badge" title={`${formatHours(missing)} missing`}>−{formatHours(missing)}</em>}</small><div className="day-meter"><i style={{ width: `${day.total ? Math.min(100, total / day.total * 100) : total ? 100 : 0}%` }} /></div></div>; })}
             <div className="time-labels">{hours.map(hour => <span style={{ height: hourHeight }} key={hour}>{String(hour).padStart(2, '0')}:00</span>)}</div>
             <div className="grid-area" aria-label="Week time calendar">
-              {days.map(day => <div className={`day-lane${day.value === todayValue ? ' today-lane' : ''}${day.weekend ? ' weekend' : ''}${focusClass(missingHoursFor(new Date(`${day.value}T12:00:00`)))}`} key={day.value} onMouseMove={event => { if (isOnWorklog(event)) { if (hoverSlot) setHoverSlot(null); return; } const start = slotFromPointer(event); if (hoverSlot?.date !== day.value || hoverSlot.start !== start) setHoverSlot({ date: day.value, start }); }} onMouseLeave={() => setHoverSlot(null)} onClick={event => { if (isOnWorklog(event)) return; setHoverSlot(null); openLogDialog({ date: day.value, time: slotTime(slotFromPointer(event)) }); }}>{hoverSlot?.date === day.value && <div className="slot-preview" aria-hidden="true" style={{ top: `${(hoverSlot.start - firstHour) * hourHeight}px`, height: `${Math.max(hourHeight - 6, 30)}px` }}><Plus size={12} />{slotTime(hoverSlot.start)}</div>}{hours.map(hour => <div className="hour-line" style={{ height: hourHeight }} key={hour} />)}{placeDayWorklogs(logs.filter(log => log.date === day.value), 42 / hourHeight).map(({ log, column, columns }) => <button className={`worklog ${log.accent}`} onClick={() => setSelected(log)} key={log.id} title={`${log.issue} · ${log.title} · ${formatHours(log.duration)}`} style={{ top: `${(log.start - firstHour) * hourHeight}px`, height: `${Math.max((Math.min(log.start + log.duration, lastHour) - log.start) * hourHeight - 6, 42)}px`, left: `calc(${column * 100 / columns}% + 4px)`, width: `calc(${100 / columns}% - 8px)`, right: 'auto' }}><b>{log.issue}</b><span>{log.title}</span><em>{formatHours(log.duration)}</em></button>)}</div>)}
+              {days.map(day => <div className={`day-lane${day.value === todayValue ? ' today-lane' : ''}${day.weekend ? ' weekend' : ''}${focusClass(missingHoursFor(new Date(`${day.value}T12:00:00`)))}`} key={day.value} onMouseMove={event => { if (isOnWorklog(event)) { if (hoverSlot) setHoverSlot(null); return; } const start = slotFromPointer(event); if (hoverSlot?.date !== day.value || hoverSlot.start !== start) setHoverSlot({ date: day.value, start }); }} onMouseLeave={() => setHoverSlot(null)} onClick={event => { if (isOnWorklog(event) || suppressClick.current) return; setHoverSlot(null); openLogDialog({ date: day.value, time: slotTime(slotFromPointer(event)) }); }}>{hoverSlot?.date === day.value && <div className="slot-preview" aria-hidden="true" style={{ top: `${(hoverSlot.start - firstHour) * hourHeight}px`, height: `${Math.max(hourHeight - 6, 30)}px` }}><Plus size={12} />{slotTime(hoverSlot.start)}</div>}{hours.map(hour => <div className="hour-line" style={{ height: hourHeight }} key={hour} />)}{placeDayWorklogs(logs.filter(log => log.date === day.value && !(drag?.mode === 'move' && log.id === drag.id)).map(log => drag?.mode === 'resize' && drag.id === log.id ? { ...log, duration: drag.duration } : log), 42 / hourHeight).map(({ log, column, columns }) => <button className={`worklog ${log.accent}${drag?.mode === 'resize' && drag.id === log.id ? ' resizing' : ''}`} onClick={() => { if (suppressClick.current) return; setSelected(log); }} onPointerDown={event => startDrag(event, log, 'move')} key={log.id} title={`${log.issue} · ${log.title} · ${formatHours(log.duration)}`} style={{ top: `${(log.start - firstHour) * hourHeight}px`, height: `${Math.max((Math.min(log.start + log.duration, lastHour) - log.start) * hourHeight - 6, 42)}px`, left: `calc(${column * 100 / columns}% + 4px)`, width: `calc(${100 / columns}% - 8px)`, right: 'auto', '--shade': log.shade } as React.CSSProperties}><div className="worklog-head"><TypeMark icon={log.typeIcon} name={log.typeName} /><b>{log.issue}</b><em>{formatHours(log.duration)}</em></div><span>{log.title}</span><i className="resize-handle" aria-hidden="true" onPointerDown={event => startDrag(event, log, 'resize')} /></button>)}{drag?.mode === 'move' && drag.date === day.value && draggedLog && <div className={`worklog ${draggedLog.accent} dragging`} aria-hidden="true" style={{ top: `${(drag.start - firstHour) * hourHeight}px`, height: `${Math.max(drag.duration * hourHeight - 6, 42)}px`, left: '4px', width: 'calc(100% - 8px)', right: 'auto', '--shade': draggedLog.shade } as React.CSSProperties}><div className="worklog-head"><TypeMark icon={draggedLog.typeIcon} name={draggedLog.typeName} /><b>{draggedLog.issue}</b><em>{formatHours(drag.duration)}</em></div><span>{draggedLog.title}</span><span className="drag-time">{timeLabel(drag.start)} – {timeLabel(drag.start + drag.duration)}</span></div>}</div>)}
               {days.some(day => day.value === todayValue) && nowHours >= firstHour && nowHours <= lastHour && <div className="now-line" style={{ top: `${(nowHours - firstHour) * hourHeight}px` }}><span>{nowLabel}</span></div>}
               {isCalendarLoading && <div className="calendar-loading"><span />Loading Jira worklogs</div>}
                {!isCalendarLoading && syncState === 'ready' && calendarSync.complete && !periodLogs.length && <div className="empty-week"><strong>No worklogs this week</strong><span>Your Jira connection is active. Browse to a previous week to see earlier time.</span><button onClick={() => movePeriod(-1)}>Show previous week</button></div>}
@@ -612,7 +719,7 @@ export default function App() {
                   <span className="month-day-head"><strong>{date.getDate()}</strong>{total > 0 && <em>{formatHours(total)}</em>}</span>
                   <span className="month-meter"><i style={{ width: `${Math.min(100, total / workdayHours * 100)}%` }} /></span>
                   {showFocus && missing > 0 && <span className="missing-badge">{formatHours(missing)} missing</span>}
-                  <span className="month-issues">{dayIssues.slice(0, 3).map(item => <span className={`month-chip ${item.accent}`} title={`${item.issue} · ${item.title}`} key={item.issue}><b>{item.issue}</b><small>{formatHours(item.duration)}</small></span>)}{dayIssues.length > 3 && <span className="month-more">+{dayIssues.length - 3} more</span>}</span>
+                  <span className="month-issues">{dayIssues.slice(0, 3).map(item => <span className={`month-chip ${item.accent}`} style={{ '--shade': item.shade } as React.CSSProperties} title={`${item.issue} · ${item.title}`} key={item.issue}><TypeMark icon={item.typeIcon} name={item.typeName} /><b>{item.issue}</b><small>{formatHours(item.duration)}</small></span>)}{dayIssues.length > 3 && <span className="month-more">+{dayIssues.length - 3} more</span>}</span>
                 </button>;
               })}
             </div>

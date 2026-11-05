@@ -2,6 +2,21 @@
 
 All notable changes to Trackline are listed here. The release workflow turns the **Unreleased** section into the notes for the next release.
 
+## Unreleased
+
+### New
+- **Drag and drop in the week view.** Drag a worklog to another time or day, or drag its bottom edge to change how long it lasts. It snaps to 15 minutes, saves to Jira straight away and goes back if Jira refuses it. Press **Esc** to cancel a drag.
+- **Cards coloured by ticket type.** Worklogs in the week and month views now show the Jira issue type: bugs, stories, tasks, epics and sub-tasks each get their own colour and icon, with a slight shade change so neighbouring tickets are easy to tell apart.
+- **Real macOS Liquid Glass.** On macOS 26 and later the sidebars use the system's glass material. The main area stays solid for readability, and the title bar now blends into the window.
+- **Resizable sidebar.** Drag the sidebar's edge to resize it, drag it narrow to shrink it to an icon strip, or double-click the edge (or press **⌥⌘S**) to switch between them.
+- **A deeper dark theme.** Dark mode now uses neutral near-black surfaces instead of navy.
+
+### Changed
+- **Clearer priority colours.** The priority bars in a person's tickets use a consistent palette based on the priority name, instead of colours that Jira often sets to plain black or white.
+
+### Fixed
+- **Worklogs move correctly after editing.** Times from Jira are now converted to your computer's timezone, so an entry you moved stays where you put it after a refresh.
+
 ## v0.10.0 — 2026-11-04
 
 ### New
